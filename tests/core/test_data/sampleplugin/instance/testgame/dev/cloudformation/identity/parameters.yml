@@ -1,0 +1,13 @@
+---
+# THIS IS A SAMPLE CLOUDFORMATION PARAMETERS FILE
+SomeParamName:
+  value: "gamekit_dev_testgame_identity_SampleParam"
+
+SomeParamValue:
+  value: "Testvalue"
+  
+FacebookClientId:
+  value: "{{AWSGAMEKIT::VARS::facebook_client_id}}"
+  
+FacebookEnabled:
+  value: "{{AWSGAMEKIT::VARS::is_facebook_enabled}}"

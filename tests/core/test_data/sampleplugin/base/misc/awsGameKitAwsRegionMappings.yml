@@ -1,0 +1,10 @@
+#
+# TEST REGION CODES
+#
+{
+  five_letter_region_codes: {
+    us-east-1: usea1,
+    us-west-2: uswe2,
+    fake-region: fare1
+  }
+}

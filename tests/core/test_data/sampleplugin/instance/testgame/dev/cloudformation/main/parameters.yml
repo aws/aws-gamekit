@@ -1,0 +1,4 @@
+---
+# THIS IS A SAMPLE CLOUDFORMATION PARAMETERS FILE
+GameKitApiName:
+  value: "gamekit_dev_testgame_main"

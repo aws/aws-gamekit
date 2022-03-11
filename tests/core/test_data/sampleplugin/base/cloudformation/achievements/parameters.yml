@@ -1,0 +1,7 @@
+---
+# THIS IS A SAMPLE CLOUDFORMATION PARAMETERS FILE
+SomeParamName:
+  value: "gamekit_{{AWSGAMEKIT::SYS::ENV}}_{{AWSGAMEKIT::SYS::GAMENAME}}_achivements_SampleParam"
+
+SomeParamValue:
+  value: "Testvalue"

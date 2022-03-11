@@ -1,0 +1,7 @@
+---
+# THIS IS A SAMPLE CLOUDFORMATION PARAMETERS FILE
+SomeParamName:
+  value: "gamekit_dev_testgame_gamesaving_SampleParam"
+
+SomeParamValue:
+  value: "Testvalue"

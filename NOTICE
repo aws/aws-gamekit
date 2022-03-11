@@ -1,0 +1,15 @@
+AWS GameKit C++ Library
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+This product includes software developed by
+Amazon Technologies, Inc (http://www.amazon.com/).
+
+**********************
+THIRD PARTY COMPONENTS
+**********************
+This software includes the following third-party software/licensing:
+Google test - https://github.com/google/googletest/blob/master/LICENSE
+Boost - https://www.boost.org/LICENSE_1_0.txt
+AWS C++ SDK - https://github.com/aws/aws-sdk-cpp
+yaml-cpp - https://github.com/jbeder/yaml-cpp/blob/master/LICENSE
+miniz v1.14 - https://github.com/richgel999/miniz/blob/v114/miniz.c

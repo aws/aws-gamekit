@@ -1,0 +1,17 @@
+---
+# THIS IS A SAMPLE CLOUDFORMATION TEMPLATE
+Parameters:
+  SomeParamName:
+    Type: String
+  SomeParamValue:
+    Type: String
+Resources:
+  BasicParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Ref SomeParamName
+      Type: String
+      Value: !Ref SomeParamValue
+      Description: SSM sample parameter for achivements.
+      Tags:
+        Environment: dev

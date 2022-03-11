@@ -1,0 +1,12 @@
+---
+# THIS IS A SAMPLE CLOUDFORMATION TEMPLATE
+Parameters:
+  GameKitApiName:
+    Type: String
+Resources :
+  RestApi :
+    Type : AWS::ApiGateway::RestApi
+    Properties :
+      Name : !Ref GameKitApiName
+      Parameters:
+        endpointConfigurationTypes: REGIONAL

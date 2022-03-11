@@ -1,0 +1,3 @@
+user_pool_client_id: TestClientID
+identity_api_gateway_base_url: TestGatewayURL
+identity_region: us-west-3

@@ -1,0 +1,6 @@
+user_pool_client_id: Test
+identity_api_gateway_base_url: TestUrl
+identity_region: TestRegion
+usergamedata_api_gateway_base_url: https://domain.tld/usergamedata
+achievements_api_gateway_base_url: https://domain.tld/achievements
+gamesaving_api_gateway_base_url: https://domain.tld/game_saving
