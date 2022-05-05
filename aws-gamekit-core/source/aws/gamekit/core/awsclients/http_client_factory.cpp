@@ -70,7 +70,7 @@ std::shared_ptr<Aws::Http::HttpRequest> GameKitHttpClientFactory::CreateHttpRequ
 
 std::shared_ptr<Aws::Http::HttpRequest> GameKitHttpClientFactory::CreateHttpRequest(const Aws::Http::URI& uri, Aws::Http::HttpMethod method, const Aws::IOStreamFactory& streamFactory) const
 {
-    auto request = Aws::MakeShared<Aws::Http::Standard::StandardHttpRequest>(GAMEKIT_HTTP_CLIENT_FACTORY_ALLOCATION_TAG, uri, method);
+    std::shared_ptr<Aws::Http::HttpRequest> request = Aws::MakeShared<Aws::Http::Standard::StandardHttpRequest>(GAMEKIT_HTTP_CLIENT_FACTORY_ALLOCATION_TAG, uri, method);
     request->SetResponseStreamFactory(streamFactory);
 
     return request;

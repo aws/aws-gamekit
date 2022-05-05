@@ -67,12 +67,13 @@ namespace GameKit
        
         // User Gameplay Data client with retry logic and support for unhealthy connectivity with an internal request queue.
         // Uses custom rules to deal with User Gameplay Data APIs:
-        // 1. In Healthy mode, all calls are synchronous by default. Calls can be made async with flag and can provide success/failure callbacks.
-        // 2. In Unhealthy mode, Add, Update and Delete API calls are kept in an internal queue. Get API calls are rejected.
-        // 3. In Unhealthy mode, accumulated requests are preprocessed so that when multiple Add/Update and Delete operations for a single
+        // 1. If the background thread is not running, all calls are synchronous by default (even if the async flag is set to true)
+        // 2. In Healthy mode, all calls are synchronous by default. Calls can be made async with flag and can provide success/failure callbacks.
+        // 3. In Unhealthy mode, Add, Update and Delete API calls are kept in an internal queue. Get API calls are rejected.
+        // 4. In Unhealthy mode, accumulated requests are preprocessed so that when multiple Add/Update and Delete operations for a single
         //    have been enqueued for a unique bundle-item combination, the most recent is kept and the old are discarded.
-        // 4. Calls are retried in order from oldest to newest, user provided callbacks are invoked on success. 
-        // 5. Default Unhealthy retry strategy is Exponential Backoff.
+        // 5. Calls are retried in order from oldest to newest, user provided callbacks are invoked on success. 
+        // 6. Default Unhealthy retry strategy is Exponential Backoff.
         class GAMEKIT_API UserGameplayDataHttpClient : public BaseHttpClient
         {
         private:

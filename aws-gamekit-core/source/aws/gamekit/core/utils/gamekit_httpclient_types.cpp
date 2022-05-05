@@ -156,15 +156,22 @@ bool GameKit::Utils::HttpClient::TrySerializeRequestBinary(std::ostream& os, con
             }
         }
 
-        bool hasContent = request->HasContentLength();
+        bool hasContent = request->HasContentType();
         BinWrite(os, hasContent);
         if (hasContent)
         {
             BinWrite(os, request->GetContentType());
-            BinWrite(os, request->GetContentLength());
+
+            bool hasContentLength = request->HasContentLength();
+            BinWrite(os, hasContentLength);
+            if (hasContentLength)
+            {
+                BinWrite(os, request->GetContentLength());
+            }
+
             std::stringstream bodyStream = std::stringstream();
             
-#if __ANDROID__
+#if ENABLE_CURL_CLIENT
             // Rewind content body buffer before serializing
             request->GetContentBody()->clear();
             request->GetContentBody()->seekg(0);
@@ -201,11 +208,11 @@ bool GameKit::Utils::HttpClient::TryDeserializeRequestBinary(std::istream& is, s
     size_t headerCount;
 
     bool hasContent;
+    bool hasContentLength;
     std::string contentType;
     std::string contentLengthStr;
     std::string contentBody;
 
-    long contentLength;
     unsigned int bodyCrc;
 
     try
@@ -240,11 +247,19 @@ bool GameKit::Utils::HttpClient::TryDeserializeRequestBinary(std::istream& is, s
         if (hasContent)
         {
             BinRead(is, contentType);
-            BinRead(is, contentLengthStr);
-            BinRead(is, contentBody);
+            outRequest->SetContentType(ToAwsString(contentType));
+            
+            BinRead(is, hasContentLength);
 
+            if (hasContentLength)
+            {
+                BinRead(is, contentLengthStr);
+                outRequest->SetContentLength(ToAwsString(contentLengthStr));
+            }
+
+            BinRead(is, contentBody);
             // verify content length matches
-            contentLength = std::stol(contentLengthStr);
+            size_t contentLength = (size_t)std::stol(contentLengthStr);
             if (contentBody.size() != contentLength)
             {
                 Logging::Log(logCb, Level::Error, "Could not deserialize HttpRequest, content length mismatch");
@@ -272,8 +287,6 @@ bool GameKit::Utils::HttpClient::TryDeserializeRequestBinary(std::istream& is, s
                 }
             }
 
-            outRequest->SetContentType(ToAwsString(contentType));
-            outRequest->SetContentLength(ToAwsString(contentLengthStr));
             std::shared_ptr<Aws::IOStream> bodyStream = Aws::MakeShared<Aws::StringStream>("RequestBody");
             *bodyStream << contentBody;
             outRequest->AddContentBody(bodyStream);

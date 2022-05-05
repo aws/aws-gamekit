@@ -34,10 +34,10 @@ namespace GameKit
 
             void AuthSetter(std::shared_ptr<Aws::Http::HttpRequest> request);
 
-            void SuccessCallback(GameKit::Utils::HttpClient::CallbackContext, std::shared_ptr<Aws::Http::HttpResponse>);
+            void MockResponseCallback(GameKit::Utils::HttpClient::CallbackContext, std::shared_ptr<Aws::Http::HttpResponse>);
 
             static void NetworkStateChangeCb(NETWORK_STATE_RECEIVER_HANDLE dispatchReceiver, bool isConnectionOk, const char* connectionClient);
-            static void CacheProcessedCb(NETWORK_STATE_RECEIVER_HANDLE dispatchReceiver, bool cacheProcessed);
+            static void CacheProcessedCb(CACHE_PROCESSED_RECEIVER_HANDLE dispatchReceiver, bool cacheProcessed);
         };
     }
 }

@@ -1,6 +1,10 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+// AWS SDK
+#include <aws/core/utils/StringUtils.h>
+
+// GameKit
 #include "user_gameplay_exports_tests.h"
 #include "../core/dispatchers.h"
 #include "aws/gamekit/user-gameplay-data/exports.h"
@@ -499,14 +503,21 @@ TEST_F(GameKitUserGameplayDataExportsTestFixture, TestDeleteBundleItems_RequestI
     // assert
     ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
 
-    ASSERT_STREQ("https://domain.tld/usergamedata/bundles/TestBundle", actualRequest->GetURIString().c_str());
+    ASSERT_STREQ("https://domain.tld/usergamedata/bundles/TestBundle", actualRequest->GetURIString(false).c_str());
     ASSERT_EQ(Aws::Http::HttpMethod::HTTP_DELETE, actualRequest->GetMethod());
     ASSERT_STREQ(TEST_AUTH_HEADER, actualRequest->GetAuthorization().c_str());
-    ASSERT_STRCASEEQ("application/json", actualRequest->GetContentType().c_str());
-    std::stringstream bodyStream;
-    bodyStream << actualRequest->GetContentBody()->rdbuf();
-    ASSERT_STRCASEEQ("{\"bundle_item_keys\":[\"k1\",\"k2\"]}", bodyStream.str().c_str());
-
+    ASSERT_FALSE(actualRequest->HasContentType());
+    ASSERT_FALSE(actualRequest->HasContentLength());
+    
+    Aws::Utils::Json::JsonValue payload;
+    bundleItems.ToJson(payload);
+    Aws::String serialized = payload.View().WriteCompact();
+    Aws::String urlEncoded = Aws::Utils::StringUtils::URLEncode(serialized.c_str());
+    Aws::Http::QueryStringParameterCollection params = actualRequest->GetQueryStringParameters();
+    ASSERT_EQ(1, params.size());
+    ASSERT_EQ(1, params.count("payload"));
+    ASSERT_STREQ(urlEncoded.c_str(), params.find("payload")->second.c_str());
+    
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
 }
 

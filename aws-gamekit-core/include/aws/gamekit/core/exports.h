@@ -80,11 +80,17 @@ extern "C"
 
 extern "C"
 {
-#pragma region AWS SDK API Initialization
+#pragma region AWS SDK API Initialization / Shutdown
     /**
      * @brief Explicitly initialize the AWS SDK
      */
     GAMEKIT_API unsigned int GameKitInitializeAwsSdk(FuncLogCallback logCb);
+
+    /**
+     * @brief Explicitly shuts down the AWS SDK. Note: this will force shutdown the SDK even if there are active SDK clients using it.
+     This is meant to be called only when quiting the main game instance.
+     */
+    GAMEKIT_API unsigned int GameKitShutdownAwsSdk(FuncLogCallback logCb);
 #pragma endregion
 
 #pragma region GameKitAccount
@@ -836,7 +842,7 @@ extern "C"
      * @param profileName The name of the profile we are saving or updating in the credentials ini file.
      * @param accessKey The access key of the Aws IAM role we are saving.
      * @param secretKey The secret key of the Aws IAM role we are saving.
-     * @param logCb Callback function for logging information and errors. 
+     * @param logCb Callback function for logging information and errors.
      */
     GAMEKIT_API unsigned int GameKitSaveAwsCredentials(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, const char* accessKey, const char* secretKey, FuncLogCallback logCb);
 

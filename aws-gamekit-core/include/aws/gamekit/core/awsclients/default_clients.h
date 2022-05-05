@@ -9,6 +9,7 @@
 #include <aws/cloudformation/CloudFormationClient.h>
 #include <aws/cognito-idp/CognitoIdentityProviderClient.h>
 #include <aws/core/auth/AWSCredentials.h>
+#include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/lambda/LambdaClient.h>
 #include <aws/s3/S3Client.h>
 #include <aws/secretsmanager/SecretsManagerClient.h>
@@ -68,7 +69,7 @@ namespace GameKit
 
         static inline Aws::CognitoIdentityProvider::CognitoIdentityProviderClient* GetDefaultCognitoIdentityProviderClient(const Aws::Client::ClientConfiguration& clientConfig)
         {
-            return new Aws::CognitoIdentityProvider::CognitoIdentityProviderClient(clientConfig);
+            return new Aws::CognitoIdentityProvider::CognitoIdentityProviderClient(Aws::MakeShared<Aws::Auth::AnonymousAWSCredentialsProvider>("anonymous"), clientConfig);
         }
 
         static inline Aws::APIGateway::APIGatewayClient* GetDefaultApiGatewayClient(const AccountCredentialsCopy& credentials)
@@ -79,6 +80,19 @@ namespace GameKit
         static inline Aws::Lambda::LambdaClient* GetDefaultLambdaClient(const AccountCredentialsCopy& credentials)
         {
             return getDefaultClient<Aws::Lambda::LambdaClient>(credentials);
+        }
+
+        static inline Aws::Client::ClientConfiguration GetDefaultClientConfigurationWithRegion(const std::map<std::string, std::string>& clientSettings, const std::string& regionKey)
+        {
+            Aws::Client::ClientConfiguration clientConfig;
+            const auto region = clientSettings.find(regionKey);
+            if (region != clientSettings.end() && !region->second.empty())
+            {
+                clientConfig.region = region->second.c_str();
+            }
+            SetDefaultClientConfiguration(clientSettings, clientConfig);
+
+            return clientConfig;
         }
 
         static inline void SetDefaultClientConfiguration(const std::map<std::string, std::string>& clientSettings, Aws::Client::ClientConfiguration& clientConfig)
@@ -93,7 +107,7 @@ namespace GameKit
 
             if (clientConfig.requestTimeoutMs < defaultMinCurlTimeout)
             {
-                clientConfig.requestTimeoutMs = defaultMinCurlTimeout; 
+                clientConfig.requestTimeoutMs = defaultMinCurlTimeout;
             }
 
             if (clientConfig.connectTimeoutMs < defaultMinCurlTimeout)
@@ -112,6 +126,8 @@ namespace GameKit
             {
                 clientConfig.caFile = certFile->second.c_str();
             }
+
+            clientConfig.httpLibOverride = Aws::Http::TransferLibType::CURL_CLIENT;
 #endif
         }
     };

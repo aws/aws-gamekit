@@ -94,7 +94,8 @@ namespace GameKit
                 bool isPendingQueueBelowLimit() const;
 
                 // Sends a request for the given operation and enqueues it for retry in case of failure. 
-                // In case the client has lost connectivity, events are enqueued for later retry.
+                // In case the client has lost connectivity, events are enqueued for later retry if the background thread is running.
+                // When the background thread is not running, all calls are made immediately (even if they are async operations or the connection is unhealthy)
                 RequestResult makeOperationRequest(std::shared_ptr<IOperation> operation, bool isAsyncOperation, bool overrideConnectionStatus);
 
             public:
@@ -103,13 +104,27 @@ namespace GameKit
 
                 void SetNetworkChangeCallback(NETWORK_STATE_RECEIVER_HANDLE receiverHandle, NetworkStatusChangeCallback statusChangeCallback);
                 void SetCacheProcessedCallback(CACHE_PROCESSED_RECEIVER_HANDLE receiverHandle, CacheProcessedCallback cacheProcessedCallback);
+                
+                // Start the retry background thread. This will process the requests in the internal queue.
                 void StartRetryBackgroundThread();
+                
+                // Stop the retry background thread. Requests in the queue will not be processed.
                 void StopRetryBackgroundThread();
 
                 // PersistQueue should be among the last methods to be called in a client. This is to ensure that all data that a player has in the queue has been saved to the cache.
+                // This method can only be called when the background thread is not running.
+                // Example:
+                // client.StopRetryBackgroundThread();
+                // client.PersistQueue(myFile, serializer);
+                // client.StartRetryBackgroundThread();
                 bool PersistQueue(const std::string& file, std::function<bool(std::ostream&, const std::shared_ptr<IOperation>, FuncLogCallback)> serializer, bool clearQueue = true);
 
                 // LoadQueue should be among the first methods to be called in a client. This is to ensure the cache has been read into the queue so they can be processed for the player.
+                // This method can only be called when the background thread is not running.
+                // Example:
+                // client.StopRetryBackgroundThread();
+                // client.LoadQueue(myFile, deserializer);
+                // client.StartRetryBackgroundThread();
                 bool LoadQueue(const std::string& file, std::function<bool(std::istream&, std::shared_ptr<IOperation>&, FuncLogCallback)> deserializer, bool deleteFileAfterLoading = true);
 
                 // Helper to clear the offline cache from the queues, there is no need to clear the local file.

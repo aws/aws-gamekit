@@ -308,6 +308,12 @@ void BaseHttpClient::SetLowLevelHttpClient(std::shared_ptr<Aws::Http::HttpClient
 bool BaseHttpClient::enqueuePending(std::shared_ptr<IOperation> operation)
 {
     std::lock_guard<std::mutex> lock(m_queueProcessingMutex);
+    if (!m_requestPump.IsRunning())
+    {
+        Logging::Log(m_logCb, Level::Warning, "Retry background thread is not running, request will not be enqueued.");
+        return false;
+    }
+
     if (isPendingQueueBelowLimit())
     {
         m_pendingQueue.push_back(operation);
@@ -410,16 +416,20 @@ void BaseHttpClient::processActiveQueue()
             Logging::Log(m_logCb, Level::Warning, "Will stop making requests");
             overrideConnectionStatus = false;
 
-#ifdef __ANDROID__
+#if defined(ANDROID) || defined(__ANDROID__)
             // In Android, getaddrinfo() will keep failing even after the connection is restored 
             // so we need to call res_init() to resolve hosts again.
             std::lock_guard<std::mutex> requestLock(m_requestMutex);
             Logging::Log(m_logCb, Level::Warning, "Calling res_init()");
             res_init();
-
-            // Rewind request content body buffer
-            operation->Request->GetContentBody()->clear();
-            operation->Request->GetContentBody()->seekg(0);
+#endif
+#if ENABLE_CURL_CLIENT
+            // Rewind request content body buffer when using Curl client, otherwise requests will be invalid
+            if (operation->Request->HasContentType() || operation->Request->HasContentLength())
+            {
+                operation->Request->GetContentBody()->clear();
+                operation->Request->GetContentBody()->seekg(0);
+            }
 #endif
         }
 
@@ -512,8 +522,9 @@ RequestResult BaseHttpClient::makeOperationRequest(std::shared_ptr<IOperation> o
 
     m_authorizationHeaderSetter(operation->Request);
 
-    // Operations set as Async are enqueued for later processing
-    if (isAsyncOperation)
+    // Operations set as Async are enqueued for later processing if the queue is running, otherwise they are
+    // executed immediately.
+    if (isAsyncOperation && m_requestPump.IsRunning())
     {
         // Enqueue
         Logging::Log(m_logCb, Level::Verbose, "Async operation, adding request to queue.");
@@ -528,7 +539,8 @@ RequestResult BaseHttpClient::makeOperationRequest(std::shared_ptr<IOperation> o
         }
     }
 
-    // If connection is healthy, make request immediately
+    // If connection is healthy or the request pump is not running, make request immediately
+    overrideConnectionStatus |= !m_requestPump.IsRunning();
     if ((m_isConnectionOk && !(m_stopProcessingOnError && m_errorDuringProcessing)) || overrideConnectionStatus)
     {
         std::lock_guard<std::mutex> requestLock(m_requestMutex);
@@ -564,10 +576,9 @@ RequestResult BaseHttpClient::makeOperationRequest(std::shared_ptr<IOperation> o
                 operation->SuccessCallback(operation->CallbackContext, response);
             }
 
-            return RequestResult(RequestResultType::RequestMadeSuccess,
-                response);
+            return RequestResult(RequestResultType::RequestMadeSuccess, response);
         }
-        else if (isOperationRetryable(operation, response))
+        else if (isOperationRetryable(operation, response) && m_requestPump.IsRunning())
         {
             // Handle transient error and set network status
             std::string message = "Request failed, setting connection status to \"Unhealthy\".";
@@ -584,9 +595,9 @@ RequestResult BaseHttpClient::makeOperationRequest(std::shared_ptr<IOperation> o
             m_retryStrategy->IncreaseCounter();
 
             // Enqueue
-            Logging::Log(m_logCb, Level::Warning, "Adding request to retry queue.");
             if (enqueuePending(operation))
             {
+                Logging::Log(m_logCb, Level::Warning, "Added request to retry queue.");
                 return RequestResult(RequestResultType::RequestAttemptedAndEnqueued, response);
             }
             else

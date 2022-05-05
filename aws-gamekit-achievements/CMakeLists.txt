@@ -75,7 +75,7 @@ install(FILES
     $<TARGET_FILE:AWS::aws-c-compression>
     $<TARGET_FILE:AWS::aws-checksums>
     TYPE BIN)
-    
+
 if (GAMEKIT_ANDROID)
     install(FILES
         $<TARGET_FILE:AWS::s2n>

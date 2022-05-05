@@ -37,7 +37,7 @@ namespace GameKit
         static void Initialize(FuncLogCallback log = nullptr, const void* caller = nullptr);
 
         // Calls Aws::ShutdownAPI()
-        static void Shutdown(FuncLogCallback log = nullptr, const void* caller = nullptr);
+        static void Shutdown(FuncLogCallback log = nullptr, const void* caller = nullptr, bool force = false);
 
         static bool IsInitialized();
     };

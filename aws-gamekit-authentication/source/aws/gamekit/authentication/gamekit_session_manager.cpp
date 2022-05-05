@@ -27,17 +27,30 @@ GameKitSessionManager::GameKitSessionManager(const std::string& clientConfigFile
 
     if (!clientConfigFile.empty())
     {
-        this->loadConfigFile(clientConfigFile);
+        loadConfigFile(clientConfigFile);
     }
+
+    InitializeDefaultAwsClients();
 }
 
 GameKitSessionManager::~GameKitSessionManager()
 {
+    m_clientSettings = nullptr;
+    if (m_awsClientsInitializedInternally && m_cognitoClient != nullptr)
+    {
+        delete(m_cognitoClient);
+        m_cognitoClient = nullptr;
+    }
+
+    AwsApiInitializer::Shutdown(m_logCb, this);
+
     if (m_tokenRefresher != nullptr)
     {
         m_tokenRefresher->Stop();
+        m_tokenRefresher = nullptr;
     }
-    AwsApiInitializer::Shutdown(m_logCb, this);
+
+    m_logCb = nullptr;
 }
 #pragma endregion
 
@@ -52,9 +65,9 @@ void GameKitSessionManager::InitializeDefaultAwsClients()
 
     m_awsClientsInitializedInternally = true;
     Aws::Client::ClientConfiguration clientConfig;
-    GameKit::DefaultClients::SetDefaultClientConfiguration(*m_clientSettings, clientConfig);
-    clientConfig.region = m_clientSettings->operator[](GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_REGION).c_str();
-    m_cognitoClient = DefaultClients::GetDefaultCognitoIdentityProviderClient(clientConfig);
+    m_cognitoClient = DefaultClients::GetDefaultCognitoIdentityProviderClient(DefaultClients::GetDefaultClientConfigurationWithRegion(
+        GetClientSettings(),
+        ClientSettings::Authentication::SETTINGS_IDENTITY_REGION));
 }
 
 void GameKitSessionManager::SetToken(TokenType tokenType, const std::string& value)
@@ -120,10 +133,13 @@ std::map<std::string, std::string> GameKitSessionManager::GetClientSettings() co
 
 void GameKitSessionManager::ReloadConfigFile(const std::string& clientConfigFile)
 {
+    Logger::Logging::Log(m_logCb, Logger::Level::Info, "GameKitSessionManager::ReloadConfigFile()");
+
     // reload config
     if (!clientConfigFile.empty())
     {
-        this->loadConfigFile(clientConfigFile);
+        loadConfigFile(clientConfigFile);
+
         // load Cognito client if it's not already set
         InitializeDefaultAwsClients();
     }
@@ -136,13 +152,14 @@ void GameKitSessionManager::ReloadConfigFile(const std::string& clientConfigFile
 
 void GameKitSessionManager::ReloadConfigFromFileContents(const std::string& clientConfigFileContents)
 {
+    Logger::Logging::Log(m_logCb, Logger::Level::Info, "GameKitSessionManager::ReloadConfigFromFileContents()");
     if (clientConfigFileContents.size() == 0)
     {
         m_clientSettings->clear();
     }
     else
     {
-        this->loadConfigContents(clientConfigFileContents);
+        loadConfigContents(clientConfigFileContents);
         InitializeDefaultAwsClients();
     }
 }
@@ -217,9 +234,9 @@ void GameKitSessionManager::executeTokenRefresh()
     Aws::String idToken = outcome.GetResult().GetAuthenticationResult().GetIdToken();
     int expiresIn = outcome.GetResult().GetAuthenticationResult().GetExpiresIn();
 
-    this->SetToken(TokenType::AccessToken, ToStdString(accessToken));
-    this->SetToken(TokenType::IdToken, ToStdString(idToken));
-    this->SetToken(TokenType::RefreshToken, ToStdString(refreshToken));
+    SetToken(TokenType::AccessToken, ToStdString(accessToken));
+    SetToken(TokenType::IdToken, ToStdString(idToken));
+    SetToken(TokenType::RefreshToken, ToStdString(refreshToken));
 
     if (!refreshToken.empty())
     {

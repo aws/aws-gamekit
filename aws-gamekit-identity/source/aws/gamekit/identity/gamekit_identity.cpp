@@ -14,15 +14,13 @@ GameKit::Identity::Identity::Identity(FuncLogCallback logCb, Authentication::Gam
 
     m_logCb = logCb;
     m_sessionManager = sessionManager;
+    m_httpClient = Aws::Http::CreateHttpClient(
+        GameKit::DefaultClients::GetDefaultClientConfigurationWithRegion(
+            m_sessionManager->GetClientSettings(),
+            ClientSettings::Authentication::SETTINGS_IDENTITY_REGION));
 
     GameKit::AwsApiInitializer::Initialize(m_logCb, this);
-
-    Aws::Client::ClientConfiguration clientConfig;
-    GameKit::DefaultClients::SetDefaultClientConfiguration(m_sessionManager->GetClientSettings(), clientConfig);
-    clientConfig.region = m_sessionManager->GetClientSettings()[ClientSettings::Authentication::SETTINGS_IDENTITY_REGION].c_str();
-
-    m_httpClient = Aws::Http::CreateHttpClient(clientConfig);
-    Logging::Log(m_logCb, Level::Info, "Identity::Identity() >> Identity instantiated");
+    InitializeDefaultAwsClients();
 }
 
 GameKit::Identity::Identity::~Identity()
@@ -33,6 +31,9 @@ GameKit::Identity::Identity::~Identity()
     }
 
     GameKit::AwsApiInitializer::Shutdown(m_logCb, this);
+    m_sessionManager = nullptr;
+    m_logCb = nullptr;
+    m_httpClient = nullptr;
 }
 #pragma endregion
 
@@ -153,6 +154,7 @@ unsigned int GameKit::Identity::Identity::ResendConfirmationCode(ResendConfirmat
 
 unsigned int GameKit::Identity::Identity::Login(UserLogin userLogin)
 {
+    Logging::Log(m_logCb, Level::Info, "Identity::Login()");
     if (!GameKit::Utils::CredentialsUtils::IsValidUsername(userLogin.userName))
     {
         std::string errorMessage = "Error: Identity::Login: Malformed Username. " + GameKit::Utils::USERNAME_REQUIREMENTS_TEXT;
@@ -167,13 +169,13 @@ unsigned int GameKit::Identity::Identity::Login(UserLogin userLogin)
         return GameKit::GAMEKIT_ERROR_MALFORMED_PASSWORD;
     }
 
-    auto request = CognitoModel::InitiateAuthRequest()
+    CognitoModel::InitiateAuthRequest request = CognitoModel::InitiateAuthRequest()
         .WithClientId(m_sessionManager->GetClientSettings()[ClientSettings::Authentication::SETTINGS_USER_POOL_CLIENT_ID].c_str())
         .WithAuthFlow(CognitoModel::AuthFlowType::USER_PASSWORD_AUTH)
-        .AddAuthParameters("USERNAME", userLogin.userName)
-        .AddAuthParameters("PASSWORD", userLogin.password);
+        .AddAuthParameters("USERNAME", Aws::String(userLogin.userName))
+        .AddAuthParameters("PASSWORD", Aws::String(userLogin.password));
 
-    auto outcome = m_cognitoClient->InitiateAuth(request);
+    CognitoModel::InitiateAuthOutcome outcome = m_cognitoClient->InitiateAuth(request);
     if (!outcome.IsSuccess())
     {
         auto error = outcome.GetError();
@@ -305,10 +307,7 @@ unsigned int GameKit::Identity::Identity::GetUser(const DISPATCH_RECEIVER_HANDLE
     }
 
     std::string fullUri = m_sessionManager->GetClientSettings()[ClientSettings::Authentication::SETTINGS_IDENTITY_API_GATEWAY_BASE_URL] + "/getuser";
-    Aws::Http::URI uri((ToAwsString(fullUri)));
-    Logging::Log(m_logCb, Level::Info, std::string("Identity::GetUser() >> Url: '" + fullUri + "'").c_str());
-    
-    std::shared_ptr<Aws::Http::HttpRequest> request = Aws::Http::CreateHttpRequest(uri, Aws::Http::HttpMethod::HTTP_GET, Aws::Utils::Stream::DefaultResponseStreamFactoryMethod);
+    std::shared_ptr<Aws::Http::HttpRequest> request = Aws::Http::CreateHttpRequest(ToAwsString(fullUri), Aws::Http::HttpMethod::HTTP_GET, Aws::Utils::Stream::DefaultResponseStreamFactoryMethod);
     request->SetAuthorization(ToAwsString(idToken));
 
     std::shared_ptr<Aws::Http::HttpResponse> response = m_httpClient->MakeRequest(request);
@@ -406,13 +405,13 @@ unsigned int GameKit::Identity::Identity::GetFacebookLoginUrl(DISPATCH_RECEIVER_
 
 unsigned int GameKit::Identity::Identity::PollFacebookLoginCompletion(const std::string& requestId, int timeout, std::string& encryptedLocation)
 {
-    auto provider = FederatedIdentityProviderFactory<FacebookIdentityProvider>::CreateProviderWithHttpClient(m_sessionManager->GetClientSettings(), m_httpClient, m_logCb);
+    FacebookIdentityProvider provider = FederatedIdentityProviderFactory<FacebookIdentityProvider>::CreateProviderWithHttpClient(m_sessionManager->GetClientSettings(), m_httpClient, m_logCb);
     return provider.PollForCompletion(requestId, timeout, encryptedLocation);
 }
 
 unsigned int GameKit::Identity::Identity::RetrieveFacebookTokens(const std::string& location)
 {
-    auto provider = FederatedIdentityProviderFactory<FacebookIdentityProvider>::CreateProviderWithHttpClient(m_sessionManager->GetClientSettings(), m_httpClient, m_logCb);
+    FacebookIdentityProvider provider = FederatedIdentityProviderFactory<FacebookIdentityProvider>::CreateProviderWithHttpClient(m_sessionManager->GetClientSettings(), m_httpClient, m_logCb);
     std::string tokenString;
     unsigned int result = provider.RetrieveTokens(location, tokenString);
     if (tokenString.empty() || result != GameKit::GAMEKIT_SUCCESS )
@@ -430,10 +429,15 @@ unsigned int GameKit::Identity::Identity::RetrieveFacebookTokens(const std::stri
 
 void GameKit::Identity::Identity::InitializeDefaultAwsClients()
 {
+    if (m_cognitoClient != nullptr)
+    {
+        return;
+    }
+
     m_awsClientsInitializedInternally = true;
     Aws::Client::ClientConfiguration clientConfig;
-    GameKit::DefaultClients::SetDefaultClientConfiguration(m_sessionManager->GetClientSettings(), clientConfig);
-    clientConfig.region = ToAwsString(m_sessionManager->GetClientSettings()[ClientSettings::Authentication::SETTINGS_IDENTITY_REGION]);
-    m_cognitoClient = DefaultClients::GetDefaultCognitoIdentityProviderClient(clientConfig);
+    m_cognitoClient = DefaultClients::GetDefaultCognitoIdentityProviderClient(GameKit::DefaultClients::GetDefaultClientConfigurationWithRegion(
+        m_sessionManager->GetClientSettings(),
+        ClientSettings::Authentication::SETTINGS_IDENTITY_REGION));
 }
 #pragma endregion

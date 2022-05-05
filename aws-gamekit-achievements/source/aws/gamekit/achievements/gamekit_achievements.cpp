@@ -42,6 +42,7 @@ Achievements::Achievements(FuncLogCallback logCb, Authentication::GameKitSession
 Achievements::~Achievements()
 {
     GameKit::AwsApiInitializer::Shutdown(m_logCb, this);
+    m_logCb = nullptr;
 }
 #pragma endregion
 

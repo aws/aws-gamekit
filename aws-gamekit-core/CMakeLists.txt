@@ -125,3 +125,7 @@ if (GAMEKIT_ANDROID)
         $<TARGET_FILE:yaml-cpp>
         TYPE BIN)
 endif()
+
+if (APPLE)
+  install(FILES $<TARGET_FILE:AWS::aws-c-sdkutils> TYPE BIN)
+endif()

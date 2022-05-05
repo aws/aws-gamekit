@@ -24,7 +24,7 @@ if ("${TARGET_ARCH_LOWER}" STREQUAL "android")
     list(APPEND CMAKE_FIND_ROOT_PATH "${BOOST_ROOT}")
     list(APPEND CMAKE_PREFIX_PATH "${CURL_LIB_DIR}")
     list(APPEND CMAKE_PREFIX_PATH "${OPENSSL_ROOT_DIR}")
-    
+
     message(WARNING "Disabling GameKit pybind integration for Android")
     set(ENABLE_GAMEKIT_PYBIND False)
     set(GAMEKIT_ANDROID True)

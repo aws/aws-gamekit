@@ -69,6 +69,7 @@ GameSaving::GameSaving(Authentication::GameKitSessionManager* sessionManager, Fu
 GameSaving::~GameSaving()
 {
     AwsApiInitializer::Shutdown(m_logCb, this);
+    m_logCb = nullptr;
 }
 #pragma endregion
 

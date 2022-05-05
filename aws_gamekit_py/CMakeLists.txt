@@ -16,7 +16,6 @@ if (BUILD_SHARED_LIBS AND ${ENABLE_GAMEKIT_PYBIND})
   pybind11_add_module(aws_gamekit_py SHARED "main.cpp")
 
   target_link_libraries(${PROJECT_NAME} PRIVATE
-     # minizip
       aws-gamekit-core
       aws-gamekit-identity
       aws-gamekit-achievements

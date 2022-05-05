@@ -12,7 +12,17 @@
 
 void TestStackInitializer::Initialize()
 {
+    using namespace ::testing;
+
     std::shared_ptr<MockHttpClient> mockClient = std::make_shared<MockHttpClient>();
+
+    // Make the default mock client return 418 MakeRequest(), without this the response would be an
+    // invalid object, causing tests to crash.
+    // With this change, tests that don't set an explicit mock would fail.
+    // Tests using http client should create their own mock and add expected requests and responses.
+    std::shared_ptr<Aws::Http::HttpResponse> dummyResponse = std::make_shared<FakeHttpResponse>();
+    dummyResponse->SetResponseCode(Aws::Http::HttpResponseCode::IM_A_TEAPOT);
+    ON_CALL(*mockClient, MakeRequest(_, _, _)).WillByDefault(Return(dummyResponse));
 
     Initialize(mockClient);
 }

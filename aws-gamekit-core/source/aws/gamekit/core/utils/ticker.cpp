@@ -88,6 +88,7 @@ void Ticker::Stop()
     // reset the flag in case the Ticker is restarted
     m_isCompleted = false;
     Logging::Log(m_logCb, Level::Info, "Ticker::Stop(): Stopped.", this);
+    m_logCb = nullptr;
 }
 
 bool Ticker::IsRunning() const

@@ -95,6 +95,7 @@ namespace GameKit
     static const unsigned int GAMEKIT_ERROR_USER_GAMEPLAY_DATA_CACHE_WRITE_FAILED = 0x010C06;
     static const unsigned int GAMEKIT_ERROR_USER_GAMEPLAY_DATA_CACHE_READ_FAILED = 0x010C07;
     static const unsigned int GAMEKIT_ERROR_USER_GAMEPLAY_DATA_UNPROCESSED_ITEMS = 0x010C08;
+    static const unsigned int GAMEKIT_ERROR_USER_GAMEPLAY_DATA_PAYLOAD_TOO_LARGE = 0x010C09;
 
     // Game Saving status codes (0x11000 - 0x113FF)
     static const unsigned int GAMEKIT_ERROR_GAME_SAVING_SLOT_NOT_FOUND = 0x11000;

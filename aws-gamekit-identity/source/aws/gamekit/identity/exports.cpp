@@ -22,12 +22,6 @@ GAMEKIT_IDENTITY_INSTANCE_HANDLE GameKitIdentityInstanceCreateWithSessionManager
     Logging::Log(logCb, Level::Info, "GameKitIdentityInstanceCreateWithSessionManager()");
     GameKit::Authentication::GameKitSessionManager* sessMgr = (GameKit::Authentication::GameKitSessionManager*)sessionManager;
     GameKit::Identity::Identity* identity = new Identity(logCb, sessMgr);
-
-    Aws::Client::ClientConfiguration clientConfig;
-    GameKit::DefaultClients::SetDefaultClientConfiguration(sessMgr->GetClientSettings(), clientConfig);
-    clientConfig.region = sessMgr->GetClientSettings()[GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_REGION].c_str();
-    identity->SetCognitoClient(GameKit::DefaultClients::GetDefaultCognitoIdentityProviderClient(clientConfig));
-
     return (GameKit::GameKitFeature*)identity;
 }
 

@@ -1,0 +1,50 @@
+import os ;
+local NDKRoot = [ os.environ NDKROOT ] ;
+local ClangBin = [ os.environ CLANGPATH ] ;
+local AndroidApiLevel = [ os.environ ANDROID_API_LEVEL ] ;
+
+using clang : armeabiv7a
+:
+$(ClangBin)/clang++
+:
+<compileflags>-fexceptions
+<compileflags>-frtti
+<compileflags>-mthumb
+<compileflags>-ffunction-sections
+<compileflags>-funwind-tables
+<compileflags>-fstack-protector-strong
+<compileflags>-Wno-invalid-command-line-argument
+<compileflags>-Wno-unused-command-line-argument
+<compileflags>-no-canonical-prefixes
+<compileflags>-I$(NDKRoot)/sources/cxx-stl/llvm-libc++/include
+<compileflags>-I$(NDKRoot)/sources/cxx-stl/llvm-libc++abi/include
+<compileflags>-I$(NDKRoot)/sources/android/support/include
+<compileflags>-DANDROID
+<compileflags>-Wa,--noexecstack
+<compileflags>-Wformat
+<compileflags>-Werror=format-security
+<compileflags>-DNDEBUG
+<compileflags>-D_REENTRANT
+<compileflags>-O2
+<compileflags>-gcc-toolchain
+<compileflags>$(NDKRoot)/toolchains/arm-linux-androideabi-4.9/prebuilt/windows-x86_64
+<compileflags>-target
+<compileflags>armv7-linux-androideabi21
+<compileflags>-march=armv7-a
+<compileflags>-mfloat-abi=softfp
+<compileflags>-mfpu=vfpv3-d16
+<compileflags>-fno-builtin-memmove
+<compileflags>-fpic
+<compileflags>-DHAVE_CONFIG_H
+<compileflags>-fno-integrated-as
+<compileflags>--sysroot
+<compileflags>$(NDKRoot)/sysroot
+<compileflags>-isystem
+<compileflags>$(NDKRoot)/sysroot/usr/include/arm-linux-androideabi
+<compileflags>-D__ANDROID_API__=$(AndroidApiLevel)
+<compileflags>-DANDROID_STL=c++_static
+<linkflags>-target
+<linkflags>armv7a-linux-androideabi21
+<archiver>$(NDKRoot)/toolchains/arm-linux-androideabi-4.9/prebuilt/windows-x86_64/arm-linux-androideabi/bin/ar
+<ranlib>$(NDKRoot)/toolchains/arm-linux-androideabi-4.9/prebuilt/windows-x86_64/arm-linux-androideabi/bin/ranlib
+;

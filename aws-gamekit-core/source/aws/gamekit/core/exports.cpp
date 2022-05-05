@@ -18,10 +18,16 @@
 
 using namespace GameKit::Logger;
 
-#pragma region AWS SDK API Initialization
+#pragma region AWS SDK API Initialization / Shutdown
 unsigned int GameKitInitializeAwsSdk(FuncLogCallback logCb)
 {
     GameKit::AwsApiInitializer::Initialize(logCb);
+    return GameKit::GAMEKIT_SUCCESS;
+}
+
+unsigned int GameKitShutdownAwsSdk(FuncLogCallback logCb)
+{
+    GameKit::AwsApiInitializer::Shutdown(logCb, nullptr, true);
     return GameKit::GAMEKIT_SUCCESS;
 }
 #pragma endregion

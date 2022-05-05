@@ -50,7 +50,7 @@ void UserGameplayDataClientTestFixture::AuthSetter(std::shared_ptr<Aws::Http::Ht
     request->SetHeaderValue(HEADER_AUTHORIZATION, "Bearer 123XYZ");
 }
 
-void UserGameplayDataClientTestFixture::SuccessCallback(CallbackContext requestContext, std::shared_ptr<Aws::Http::HttpResponse> response)
+void UserGameplayDataClientTestFixture::MockResponseCallback(CallbackContext requestContext, std::shared_ptr<Aws::Http::HttpResponse> response)
 {
     Aws::Http::HttpResponseCode* responseCode = static_cast<Aws::Http::HttpResponseCode*>(requestContext);
     *responseCode = response->GetResponseCode();
@@ -68,7 +68,7 @@ void UserGameplayDataClientTestFixture::CacheProcessedCb(CACHE_PROCESSED_RECEIVE
     *newState = cacheProcessed;
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequest_ClientOnline_Success)
+TEST_F(UserGameplayDataClientTestFixture, MakeSingleRequest_ClientOnline_WithBackgroundThread_Success)
 {
     // Arrange
     using namespace ::testing;
@@ -99,7 +99,35 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequest_ClientOnline_Success)
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequest_ClientOffline_Retry)
+TEST_F(UserGameplayDataClientTestFixture, MakeSingleRequest_ClientOnline_WithoutBackgroundThread_Success)
+{
+    // Arrange
+    using namespace ::testing;
+
+    std::shared_ptr<Aws::Http::HttpRequest> request = std::make_shared<FakeHttpRequest>(
+        Aws::Http::URI("https://123.aws.com/foo"), Aws::Http::HttpMethod::HTTP_POST);
+
+    std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
+    response->SetResponseCode(Aws::Http::HttpResponseCode(201));
+
+    std::shared_ptr<MockHttpClient> mockHttpClient = std::make_shared<MockHttpClient>();
+    EXPECT_CALL(*mockHttpClient, MakeRequest(_, _, _))
+        .WillOnce(Return(response));
+
+    // Act
+    UserGameplayDataHttpClient client(mockHttpClient, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+
+    auto result = client.MakeRequest(UserGameplayDataOperationType::Write,
+        false, "Foo", "", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
+
+    // Assert
+    ASSERT_EQ(result.ResultType, RequestResultType::RequestMadeSuccess);
+    ASSERT_EQ(result.Response->GetResponseCode(), Aws::Http::HttpResponseCode(201));
+
+    ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
+}
+
+TEST_F(UserGameplayDataClientTestFixture, MakeSingleRequest_ClientOffline_WithBackgroundThread_Retry)
 {
     // Arrange
     using namespace ::testing;
@@ -134,7 +162,39 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequest_ClientOffline_Retry)
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequest_ClientOfflineThenOnline_RetryAndSuccess)
+TEST_F(UserGameplayDataClientTestFixture, MakeSingleRequest_ClientOffline_WithoutBackgroundThread_NoRetry)
+{
+    // Arrange
+    using namespace ::testing;
+
+    std::shared_ptr<Aws::Http::HttpRequest> request = std::make_shared<FakeHttpRequest>(
+        Aws::Http::URI("https://123.aws.com/foo"), Aws::Http::HttpMethod::HTTP_POST);
+
+    std::shared_ptr<MockHttpClient> mockHttpClient = std::make_shared<MockHttpClient>();
+    std::shared_ptr<Aws::Http::HttpResponse> notMadeResponse = std::make_shared<FakeHttpResponse>();
+    notMadeResponse->SetResponseCode(Aws::Http::HttpResponseCode(-1));
+
+    EXPECT_CALL(*mockHttpClient, MakeRequest(_, _, _))
+        .Times(1)
+        .WillRepeatedly(Return(notMadeResponse));
+
+    // Act
+    UserGameplayDataHttpClient client(mockHttpClient, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+
+    auto result = client.MakeRequest(UserGameplayDataOperationType::Write,
+        false, "Foo", "", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    // Assert
+
+    ASSERT_EQ(result.ResultType, RequestResultType::RequestMadeFailure);
+    ASSERT_EQ(result.Response->GetResponseCode(), Aws::Http::HttpResponseCode(-1));
+
+    ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
+}
+
+TEST_F(UserGameplayDataClientTestFixture, MakeSingleRequest_ClientOfflineThenOnline_WithBackgroundThread_EnqueueRetryAndSuccess)
 {
     // Arrange
     using namespace ::testing;
@@ -150,8 +210,8 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequest_ClientOfflineThenOnline_Re
     successResponse->SetResponseCode(Aws::Http::HttpResponseCode(201));
 
     Aws::Http::HttpResponseCode responseCode = Aws::Http::HttpResponseCode(-1);
-    ResponseCallback successCallback = 
-        std::bind(&UserGameplayDataClientTestFixture::SuccessCallback, this, std::placeholders::_1, std::placeholders::_2);
+    ResponseCallback responseCallback = 
+        std::bind(&UserGameplayDataClientTestFixture::MockResponseCallback, this, std::placeholders::_1, std::placeholders::_2);
 
     EXPECT_CALL(*mockHttpClient, MakeRequest(_, _, _))
         .WillOnce(Return(notMadeResponse))
@@ -163,7 +223,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequest_ClientOfflineThenOnline_Re
 
     auto result = client.MakeRequest(UserGameplayDataOperationType::Write,
         false, "Foo", "", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT,
-        (CallbackContext)(&responseCode), successCallback);
+        (CallbackContext)(&responseCode), responseCallback);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
@@ -177,7 +237,54 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequest_ClientOfflineThenOnline_Re
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ClientOfflineThenOnline_EnqueueRetryAndSuccess)
+TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_ClientOfflineThenOnline_WithoutBackgroundThread_FailAndSuccess)
+{
+    // Arrange
+    using namespace ::testing;
+
+    std::shared_ptr<Aws::Http::HttpRequest> request = std::make_shared<FakeHttpRequest>(
+        Aws::Http::URI("https://123.aws.com/foo"), Aws::Http::HttpMethod::HTTP_POST);
+
+    std::shared_ptr<MockHttpClient> mockHttpClient = std::make_shared<MockHttpClient>();
+    std::shared_ptr<Aws::Http::HttpResponse> notMadeResponse = std::make_shared<FakeHttpResponse>();
+    notMadeResponse->SetResponseCode(Aws::Http::HttpResponseCode(-1));
+
+    std::shared_ptr<Aws::Http::HttpResponse> successResponse = std::make_shared<FakeHttpResponse>();
+    successResponse->SetResponseCode(Aws::Http::HttpResponseCode(201));
+
+    Aws::Http::HttpResponseCode responseCode1 = Aws::Http::HttpResponseCode(-1);
+    Aws::Http::HttpResponseCode responseCode2 = Aws::Http::HttpResponseCode(201);
+    ResponseCallback responseCallback =
+        std::bind(&UserGameplayDataClientTestFixture::MockResponseCallback, this, std::placeholders::_1, std::placeholders::_2);
+
+    EXPECT_CALL(*mockHttpClient, MakeRequest(_, _, _))
+        .WillOnce(Return(notMadeResponse))
+        .WillOnce(Return(successResponse));
+
+    // Act
+    UserGameplayDataHttpClient client(mockHttpClient, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+    
+    auto result1 = client.MakeRequest(UserGameplayDataOperationType::Write,
+        false, "Foo1", "", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT,
+        (CallbackContext)(&responseCode1), responseCallback);
+
+    auto result2 = client.MakeRequest(UserGameplayDataOperationType::Write,
+        false, "Foo2", "", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT,
+        (CallbackContext)(&responseCode2), responseCallback);
+
+    // Assert
+    ASSERT_EQ(result1.ResultType, RequestResultType::RequestMadeFailure);
+    ASSERT_EQ(result1.Response->GetResponseCode(), Aws::Http::HttpResponseCode(-1));
+    ASSERT_EQ(responseCode1, Aws::Http::HttpResponseCode(-1));
+
+    ASSERT_EQ(result2.ResultType, RequestResultType::RequestMadeSuccess);
+    ASSERT_EQ(result2.Response->GetResponseCode(), Aws::Http::HttpResponseCode(201));
+    ASSERT_EQ(responseCode2, Aws::Http::HttpResponseCode(201));
+
+    ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
+}
+
+TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_ClientOfflineThenOnline_WithBackgroundThread_EnqueueRetryAndSuccess)
 {
     // Arrange
     using namespace ::testing;
@@ -195,7 +302,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ClientOfflineThenOnline_E
     Aws::Http::HttpResponseCode responseCode1 = Aws::Http::HttpResponseCode(-1);
     Aws::Http::HttpResponseCode responseCode2 = Aws::Http::HttpResponseCode(-1);
     ResponseCallback successCallback =
-        std::bind(&UserGameplayDataClientTestFixture::SuccessCallback, this, std::placeholders::_1, std::placeholders::_2);
+        std::bind(&UserGameplayDataClientTestFixture::MockResponseCallback, this, std::placeholders::_1, std::placeholders::_2);
 
     NetworkStatusChangeCallback networkStateCallback = &UserGameplayDataClientTestFixture::NetworkStateChangeCb;
 
@@ -300,7 +407,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeOperation_BinarySerializeDeseriali
     // Inner request serialization is tested in GameKitRequestSerializationTestFixture
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequests_SerializeToCache_ReloadFromCache)
+TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_SerializeToCache_ReloadFromCache)
 {
     // Arrange
     using namespace ::testing;
@@ -337,8 +444,10 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_SerializeToCache_ReloadFr
     bool loadResult = false;
     bool fileExistsAfterLoading = false;
     {
-        UserGameplayDataHttpClient client(mockHttpClient1, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+        unsigned int retryIntervalSeconds = 10;
+        UserGameplayDataHttpClient client(mockHttpClient1, authSetter, retryIntervalSeconds, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
         client.SetCacheProcessedCallback(&cachedCallsFinished, cacheFinishedCallback);
+        client.StartRetryBackgroundThread();
 
         auto result1 = client.MakeRequest(UserGameplayDataOperationType::Write,
             true, "Foo1", "Bar1", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
@@ -348,17 +457,16 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_SerializeToCache_ReloadFr
             true, "Foo2", "Bar2", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
         resultType2 = result2.ResultType;
 
+        // wait some time, but requests shouldn't be sent
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        client.StopRetryBackgroundThread();
         persistResult = client.PersistQueue(CACHE_BIN_FILE, serializer);
         fileExistsAfterPersisting = boost::filesystem::exists(CACHE_BIN_FILE);
-        client.StartRetryBackgroundThread();
-
-        // wait some time, but requests shouldn't be sent since the queue has been persisted
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        client.StopRetryBackgroundThread();
     }
 
-
-    UserGameplayDataHttpClient client2(mockHttpClient2, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+    unsigned int retryIntervalSeconds = 1;
+    UserGameplayDataHttpClient client2(mockHttpClient2, authSetter, retryIntervalSeconds, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
     client2.SetCacheProcessedCallback(&cachedCallsFinished, cacheFinishedCallback);
 
     bool state_t_1 = cachedCallsFinished;
@@ -391,7 +499,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_SerializeToCache_ReloadFr
     ASSERT_TRUE(state_t_2);
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ReloadFromCache_ProcessingCacheFailedCallback)
+TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_ReloadFromCache_ProcessingCacheFailedCallback)
 {
     // Arrange
     using namespace ::testing;
@@ -425,8 +533,10 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ReloadFromCache_Processin
     bool persistResult = false;
     bool loadResult = false;
     {
-        UserGameplayDataHttpClient client(mockHttpClient1, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+        unsigned int retryIntervalSeconds = 10;
+        UserGameplayDataHttpClient client(mockHttpClient1, authSetter, retryIntervalSeconds, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
         client.SetCacheProcessedCallback(&cachedCallsFinished, cacheFinishedCallback);
+        client.StartRetryBackgroundThread();
 
         auto result1 = client.MakeRequest(UserGameplayDataOperationType::Write,
             true, "Foo1", "Bar1", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
@@ -436,16 +546,16 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ReloadFromCache_Processin
             true, "Foo2", "Bar2", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
         resultType2 = result2.ResultType;
 
-        persistResult = client.PersistQueue(CACHE_BIN_FILE, serializer);
-        client.StartRetryBackgroundThread();
-
-        // wait some time, but requests shouldn't be sent since the queue has been persisted
+        // wait some time, but requests shouldn't be sent due to long interval
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
         client.StopRetryBackgroundThread();
+        persistResult = client.PersistQueue(CACHE_BIN_FILE, serializer);
     }
 
     {
-        UserGameplayDataHttpClient client2(mockHttpClient2, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+        unsigned int retryIntervalSeconds = 1;
+        UserGameplayDataHttpClient client2(mockHttpClient2, authSetter, retryIntervalSeconds, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
         client2.SetCacheProcessedCallback(&cachedCallsFinished, cacheFinishedCallback);
 
         loadResult = client2.LoadQueue(CACHE_BIN_FILE, deserializer);
@@ -470,7 +580,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ReloadFromCache_Processin
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient2.get()));
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ReloadFromCache_DeleteCachedOps)
+TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_ReloadFromCache_DeleteCachedOps)
 {
     // Arrange
     using namespace ::testing;
@@ -503,27 +613,31 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ReloadFromCache_DeleteCac
     RequestResultType resultType2;
     bool persistResult = false;
     bool loadResult = false;
+    bool isAsyncCall = true; // async calls are enqueued by design
     {
-        UserGameplayDataHttpClient client(mockHttpClient1, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+        unsigned int retryIntervalSeconds = 10; // long interval to give time to enqueue and persist before making requests
+        UserGameplayDataHttpClient client(mockHttpClient1, authSetter, retryIntervalSeconds, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
         client.SetCacheProcessedCallback(&cachedCallsFinished, cacheFinishedCallback);
 
+        // If the retry background thread is not running, async calls would be attempted immediately
+        client.StartRetryBackgroundThread(); 
+
         auto result1 = client.MakeRequest(UserGameplayDataOperationType::Write,
-            true, "Foo1", "Bar1", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
+            isAsyncCall, "Foo1", "Bar1", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
         resultType1 = result1.ResultType;
 
         auto result2 = client.MakeRequest(UserGameplayDataOperationType::Delete,
-            true, "Foo2", "Bar2", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
+            isAsyncCall, "Foo2", "Bar2", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
         resultType2 = result2.ResultType;
 
-        persistResult = client.PersistQueue(CACHE_BIN_FILE, serializer);
-        client.StartRetryBackgroundThread();
-
-        // wait some time, but requests shouldn't be sent since the queue has been persisted
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
         client.StopRetryBackgroundThread();
+        persistResult = client.PersistQueue(CACHE_BIN_FILE, serializer);
     }
 
     {
+        unsigned int retryIntervalSeconds = 1;
         UserGameplayDataHttpClient client2(mockHttpClient2, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
         client2.SetCacheProcessedCallback(&cachedCallsFinished, cacheFinishedCallback);
 
@@ -548,7 +662,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_ReloadFromCache_DeleteCac
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient2.get()));
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequests_SerializeToInvalidPath_ReturnsFalse)
+TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_SerializeToInvalidPath_ReturnsFalse)
 {
     // Arrange
     using namespace ::testing;
@@ -572,12 +686,15 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_SerializeToInvalidPath_Re
     RequestResultType resultType1;
     bool persistResult = false;
     {
-        UserGameplayDataHttpClient client(mockHttpClient1, authSetter, 1, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+        unsigned int intervalRetrySeconds = 10;
+        UserGameplayDataHttpClient client(mockHttpClient1, authSetter, 10, retryLogic, MAX_QUEUE_SIZE, TestLogger::Log);
+        client.StartRetryBackgroundThread();
 
         auto result1 = client.MakeRequest(UserGameplayDataOperationType::Write,
             true, "Foo1", "Bar1", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT);
         resultType1 = result1.ResultType;
 
+        client.StopRetryBackgroundThread();
         persistResult = client.PersistQueue(INVALID_FILE, serializer);
     }
 
@@ -588,7 +705,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeRequests_SerializeToInvalidPath_Re
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient1.get()));
 }
 
-TEST_F(UserGameplayDataClientTestFixture, MakeRequests_DeserializeFromInvalidPath_ReturnsFalse)
+TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_DeserializeFromInvalidPath_ReturnsFalse)
 {
     // Arrange
     using namespace ::testing;

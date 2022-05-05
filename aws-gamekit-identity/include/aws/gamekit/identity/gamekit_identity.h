@@ -81,8 +81,8 @@ namespace GameKit
         class Identity : GameKitFeature, IIdentityFeature
         {
         private:
-            Aws::CognitoIdentityProvider::CognitoIdentityProviderClient* m_cognitoClient;
-            Authentication::GameKitSessionManager* m_sessionManager;
+            Aws::CognitoIdentityProvider::CognitoIdentityProviderClient* m_cognitoClient = nullptr;
+            Authentication::GameKitSessionManager* m_sessionManager = nullptr;
             bool m_awsClientsInitializedInternally;
             std::shared_ptr<Aws::Http::HttpClient> m_httpClient;
 

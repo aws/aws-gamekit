@@ -13,3 +13,5 @@ Boost - https://www.boost.org/LICENSE_1_0.txt
 AWS C++ SDK - https://github.com/aws/aws-sdk-cpp
 yaml-cpp - https://github.com/jbeder/yaml-cpp/blob/master/LICENSE
 miniz v1.14 - https://github.com/richgel999/miniz/blob/v114/miniz.c
+pybind11 - https://github.com/pybind/pybind11/blob/master/LICENSE
+pytest - https://github.com/pytest-dev/pytest/blob/main/LICENSE

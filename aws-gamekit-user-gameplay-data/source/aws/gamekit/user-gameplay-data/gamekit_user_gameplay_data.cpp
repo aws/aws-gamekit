@@ -7,6 +7,7 @@
 
 // GameKit
 #include <aws/gamekit/core/internal/platform_string.h>
+#include <aws/gamekit/core/utils/validation_utils.h>
 #include <aws/gamekit/user-gameplay-data/gamekit_user_gameplay_data.h>
 
 using namespace Aws::Http;
@@ -58,6 +59,7 @@ UserGameplayData::~UserGameplayData()
 {
     m_customHttpClient->StopRetryBackgroundThread();
     AwsApiInitializer::Shutdown(m_logCb, this);
+    m_logCb = nullptr;
 }
 #pragma endregion
 
@@ -549,7 +551,7 @@ unsigned int UserGameplayData::DeleteUserGameplayDataBundleItems(UserGameplayDat
     std::stringstream invalidKeys;
     if (!validateBundleItemKeys(deleteItemsRequest.bundleItemKeys, deleteItemsRequest.numKeys, invalidKeys))
     {
-        const std::string errorMessage = "Error: UserGameplayData::AddUserGameplayData() malformed item key(s): " + invalidKeys.str() + ". Item key(s)" + GameKit::Utils::PRIMARY_IDENTIFIER_REQUIREMENTS_TEXT;
+        const std::string errorMessage = "Error: UserGameplayData::DeleteUserGameplayDataBundleItem() malformed item key(s): " + invalidKeys.str() + ". Item key(s)" + GameKit::Utils::PRIMARY_IDENTIFIER_REQUIREMENTS_TEXT;
         Logging::Log(m_logCb, Level::Error, errorMessage.c_str());
         return GAMEKIT_ERROR_MALFORMED_BUNDLE_ITEM_KEY;
     }
@@ -571,13 +573,18 @@ unsigned int UserGameplayData::DeleteUserGameplayDataBundleItems(UserGameplayDat
     JsonValue payload;
     deleteItemsRequest.ToJson(payload);
 
-    std::shared_ptr<Aws::IOStream> payloadStream = Aws::MakeShared<Aws::StringStream>("DeleteUserGameplayDataBundleItemsBody");
     Aws::String serialized = payload.View().WriteCompact();
-    *payloadStream << serialized;
 
-    request->AddContentBody(payloadStream);
-    request->SetContentType("application/json");
-    request->SetContentLength(StringUtils::to_string(serialized.size()));
+    // Some HTTP clients don't append the body to the DELETE request, causing the whole bundle to
+    // be deleted so we pass the keys in the query string.
+    Aws::String urlEncodedPayload = StringUtils::URLEncode(serialized.c_str());
+    if (urlEncodedPayload.length() > GameKit::Utils::MAX_URL_PARAM_CHARS)
+    {
+        const std::string errorMessage = "Error: UserGameplayData::DeleteUserGameplayDataBundleItem() payload is above " + std::to_string(GameKit::Utils::MAX_URL_PARAM_CHARS) + " maximum length, reduce the number of items to delete.";
+        Logging::Log(m_logCb, Level::Error, errorMessage.c_str());
+        return GAMEKIT_ERROR_USER_GAMEPLAY_DATA_PAYLOAD_TOO_LARGE;
+    }
+    request->AddQueryStringParameter("payload", urlEncodedPayload);
 
     // Since the request operates on several items, passing empty string as item name.
     // The filtering logic does not handle operations on multiple items in the same request.
