@@ -182,14 +182,14 @@ unsigned int GameKit::Utils::FileUtils::ReadFileAsYAML(const std::string& filePa
     {
         returnedNode = YAML::Load(stream);
     }
-    catch (YAML::Exception& e)
+    catch (... /*static-linked YAML types can't be caught in a shared .so*/)
     {
         if (!stream.fail())
         {
             returnedNode.reset();
             if (logCallback)
             {
-                const auto errorMessage = errorMessagePrefix + "Failed to parse YAML file " + filePath + ": " + e.msg;
+                const auto errorMessage = errorMessagePrefix + "Failed to parse YAML file " + filePath;
                 Logging::Log(logCallback, Level::Error, errorMessage.c_str());
             }
             return GAMEKIT_ERROR_GENERAL; // we should make a more general PARSE_ERROR instead of JSON_PARSE_ERROR
@@ -207,6 +207,7 @@ unsigned int GameKit::Utils::FileUtils::ReadFileAsYAML(const std::string& filePa
         return GAMEKIT_ERROR_FILE_READ_FAILED;
     }
 
+    stream.close();
     return GAMEKIT_SUCCESS;
 }
 
@@ -216,13 +217,13 @@ unsigned int GameKit::Utils::FileUtils::ReadFileContentsAsYAML(const std::string
     {
         returnedNode = YAML::Load(fileContents);
     }
-    catch (YAML::Exception& e)
+    catch (... /*static-linked YAML types can't be caught in a shared .so*/)
     {
         
         returnedNode.reset();
         if (logCallback)
         {
-            const auto errorMessage = errorMessagePrefix + "Failed to parse YAML contents " + fileContents.data() + ": " + e.msg;
+            const auto errorMessage = errorMessagePrefix + "Failed to parse YAML contents " + fileContents.data();
             Logging::Log(logCallback, Level::Error, errorMessage.c_str());
         }
         return GAMEKIT_ERROR_GENERAL;

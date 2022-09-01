@@ -65,7 +65,7 @@ namespace GameKit
             GameKit::Utils::STSUtils m_stsUtils;
 
             unsigned int processResponse(const std::shared_ptr<Aws::Http::HttpResponse>& response, const std::string& originMethod, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback, Aws::Utils::Json::JsonValue& outJsonValue) const;
-            bool signRequestWithSessionCredentials(const std::shared_ptr<Aws::Http::HttpRequest> request);
+            bool signRequestWithSessionCredentials(const std::shared_ptr<Aws::Http::HttpRequest>& request);
             unsigned persistAchievementsData(const Achievement* achievements, const std::vector<std::pair<std::string, std::string>>& updatedIcons, size_t batchSize);
             std::string getAchievementsBucketName() const;
             Aws::S3::Model::PutObjectOutcome uploadToS3(const Aws::S3::S3Client* s3Client, const std::string& objectKey, const boost::filesystem::path& filePath) const;

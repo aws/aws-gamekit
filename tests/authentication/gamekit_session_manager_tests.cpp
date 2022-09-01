@@ -75,24 +75,3 @@ TEST_F(GameKitSessionManagerTestFixture, No_RefreshToken_Abort_Success)
 
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(cognitoMock.get()));
 }
-
-TEST_F(GameKitSessionManagerTestFixture, RefreshToken_Abort_Success)
-{
-    // arrange
-    gamekitSessionManagerInstance->SetToken(GameKit::TokenType::RefreshToken, "abc");
-    auto cognitoMock = Aws::MakeShared<GameKit::Mocks::MockCognitoIdentityProviderClient>("cognitoMock");
-    gamekitSessionManagerInstance->SetCognitoClient(cognitoMock.get());
-
-    InitiateAuthOutcome error = InitiateAuthOutcome();
-    InitiateAuthOutcome success = InitiateAuthOutcome(InitiateAuthResult());
-
-    EXPECT_CALL(*cognitoMock.get(), InitiateAuth(_))
-        .WillOnce(Return(error))
-        .WillOnce(Return(success));
-
-    // act
-    gamekitSessionManagerInstance->SetSessionExpiration(1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(2100));
-
-    ASSERT_TRUE(Mock::VerifyAndClearExpectations(cognitoMock.get()));
-}

@@ -14,11 +14,14 @@
  * Just make sure to initialize the new instance as described below.
  *
  * ## Initialization
- * The Game Saving library must be initialized exactly once by calling GameKitGameSavingInstanceCreateWithSessionManager(),
- * GameKitAddLocalSlots(), and GameKitGetAllSlotSyncStatuses() in that order.
+ * The Game Saving library must be initialized exactly once by calling GameKitGameSavingInstanceCreateWithSessionManager() and optionally GameKitSetFileActions().
  * This initialization must be done before calling any other Game Saving APIs, and should only be done once per instance of your singleton.
  *
+ * After the library is initialized, each time a user logs in GameKitClearSyncedSlots(), GameKitAddLocalSlots(), and GameKitGetAllSlotSyncStatuses() must be
+ * called in that order to ensure all local and cloud slots are up to date.
+ *
  * - GameKitGameSavingInstanceCreateWithSessionManager() creates an instance of the Game Saving class which you need to pass into every other Game Saving API.
+ * - GameKitClearSyncedSlots() is called to ensure that any previous user's slots are cleared out properly. If preferred, this method can also be called when a user logs out. 
  * - GameKitAddLocalSlots() is optional if you already provided `localSlotInformationFilePaths` to the previous method. Either way, provding these paths
  *   this ensures Game Saving knows about local saves on the device that exist from previous times the game was played.
  * - GameKitGetAllSlotSyncStatuses() ensures Game Saving has the latest information about the cloud saves, knows which local saves are synchronized
@@ -102,11 +105,22 @@ extern "C"
     GAMEKIT_API void GameKitAddLocalSlots(GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance, const char* const* localSlotInformationFilePaths, unsigned int arraySize);
 
     /**
+     * @brief Clears slot information for all of the feature's cached save slots. 
+     *
+     * @details This method should be called as soon as a user is logged out or before GameKitAddLocalSlots() is called after a user logs in..
+     * Calling this method before calling GameKitAddLocalSlots() for a new user will ensure that a previous users cached slots will
+     * not be present for the currently logged in user.
+     *
+     * @param gameSavingInstance A pointer to a GameSaving instance created with GameKitGameSavingInstanceCreateWithSessionManager().
+     */
+    GAMEKIT_API void GameKitClearSyncedSlots(GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance);
+
+    /**
      * @brief Change the file I/O callbacks used by this library.
      *
      * @details If you didn't provide a set of FileActions to GameKitGameSavingInstanceCreateWithSessionManager(),
      * then this is the next method you should call before calling any other APIs on the Game Saving library
-     * (even before GameKitAddLocalSlots()). See the file level documentation for more details on initialization.
+     * (even before GameKitAddLocalSlots() and GameKitClearSyncedSlots()). See the file level documentation for more details on initialization.
      *
      * @param gameSavingInstance A pointer to a GameSaving instance created with GameKitGameSavingInstanceCreateWithSessionManager().
      * @param fileActions A struct of callbacks defining how to perform file I/O actions for the running platform.
@@ -135,6 +149,7 @@ extern "C"
      * - GAMEKIT_ERROR_NO_ID_TOKEN: The player is not logged in. You must login the player through the Identity & Authentication feature (identity/exports.h) before calling this method.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitGetAllSlotSyncStatuses(
         GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance,
@@ -160,6 +175,7 @@ extern "C"
      *                                             or the slot only exists in the cloud and you need to call GameKitGetAllSlotSyncStatuses() first before calling this method.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitGetSlotSyncStatus(
         GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance,
@@ -191,6 +207,7 @@ extern "C"
      *                                             or the slot only exists in the cloud and you need to call GameKitGetAllSlotSyncStatuses() first before calling this method.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitDeleteSlot(
         GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance,
@@ -230,6 +247,7 @@ extern "C"
      *                                                  GAMEKIT_ERROR_GAME_SAVING_SYNC_CONFLICT because the local and cloud save might have non-overlapping game progress.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitSaveSlot(
         GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance,
@@ -272,6 +290,7 @@ extern "C"
      *                                               device. To resolve, call GameKitGetSlotSyncStatus() to get the up-to-date size of the cloud file.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitLoadSlot(
         GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance,

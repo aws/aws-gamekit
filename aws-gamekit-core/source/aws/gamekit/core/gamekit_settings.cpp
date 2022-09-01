@@ -7,7 +7,7 @@
 #include <aws/gamekit/core/utils/file_utils.h>
 
 using namespace GameKit;
-using namespace GameKit::Logger;
+using namespace Logger;
 using namespace Aws::Auth;
 using namespace Aws::Config;
 
@@ -16,6 +16,25 @@ GameKitSettings::GameKitSettings(const std::string& gamekitRoot, const std::stri
     m_gamekitRootPath(gamekitRoot), m_gamekitPluginVersion(pluginVersion), m_shortGameName(shortGameName), m_currentEnvironment(currentEnvironment), m_logCb(logCallback)
 {
     Logging::Log(m_logCb, Level::Info, "GameKitSettings instantiated");
+   
+    const std::string credentialsFileLocation = ToStdString(ProfileConfigFileAWSCredentialsProvider::GetCredentialsProfileFilename());
+
+    if (!boost::filesystem::exists(credentialsFileLocation))
+    {
+        const std::string awsDirectory = ToStdString(ProfileConfigFileAWSCredentialsProvider::GetProfileDirectory());
+
+        if (!boost::filesystem::exists(awsDirectory))
+        {
+            if (!boost::filesystem::create_directories(awsDirectory))
+            {
+                Logging::Log(m_logCb, Level::Error, "Failed to create ~/.aws folder, ensure you have the proper permissions to create files at this location. This folder is necessary for creating and using AWS resources.");
+                return;
+            }
+        }
+
+        boost::filesystem::ofstream credentialsFile(credentialsFileLocation);
+        credentialsFile.close();
+    }
 
     // For the settings file, "not found" is a warning and not an error, because it never exists on the first run.
     std::string gamekitSettingsFile = GetSettingsFilePath();
@@ -31,7 +50,9 @@ GameKitSettings::GameKitSettings(const std::string& gamekitRoot, const std::stri
     }
     else
     {
-        std::string msg = std::string("Plugin settings file not found at ").append(gamekitSettingsFile);
+        std::string msg = std::string("Plugin settings file not found at ")
+            .append(gamekitSettingsFile)
+            .append(" . This is expected the first time you submit AWS Credentials for an AWS GameKit project.");
         Logging::Log(m_logCb, Level::Warning, msg.c_str());
     }
 }
@@ -104,6 +125,28 @@ unsigned int GameKitSettings::SaveSettings()
     return GAMEKIT_SUCCESS;
 }
 
+unsigned int GameKitSettings::PopulateAndSave(const std::string& gameName, const std::string& envCode, const std::string& region)
+{
+    std::string file = GetSettingsFilePath();
+    if (!file.empty())
+    {
+        boost::filesystem::path filePath(file);
+        boost::filesystem::path parentDir = filePath.parent_path();
+        if (!boost::filesystem::exists(parentDir))
+        {
+            boost::filesystem::create_directories(parentDir);
+            std::string message = "Created " + parentDir.string();
+            Logging::Log(m_logCb, Level::Info, message.c_str());
+        }
+    }
+
+    SetGameName(gameName);
+    SetLastUsedEnvironment(envCode);
+    SetLastUsedRegion(region);
+
+    return SaveSettings();
+}
+
 std::string GameKitSettings::GetGameName() const
 {
     return m_gamekitYamlSettings[GAMEKIT_SETTINGS_GAME_KEY][GAMEKIT_SETTINGS_GAME_NAME].Scalar();
@@ -115,7 +158,7 @@ std::string GameKitSettings::GetLastUsedRegion() const
     {
         return m_gamekitYamlSettings[GAMEKIT_SETTINGS_LAST_USED_REGION].Scalar();
     }
-    catch (const YAML::InvalidNode&)
+    catch (... /*static-linked YAML types can't be caught in a shared .so this is likely a YAML::InvalidNode exception*/)
     {
         return "us-east-1";
     }
@@ -127,7 +170,7 @@ std::string GameKitSettings::GetLastUsedEnvironment() const
     {
         return m_gamekitYamlSettings[GAMEKIT_SETTINGS_LAST_USED_ENVIRONMENT][GAMEKIT_SETTINGS_LAST_USED_ENVIRONMENT_CODE].Scalar();
     }
-    catch (const YAML::InvalidNode&)
+    catch (... /*static-linked YAML types can't be caught in a shared .so this is likely a YAML::InvalidNode exception*/)
     {
         return "dev";
     }
@@ -214,7 +257,7 @@ std::string GameKitSettings::GetSettingsFilePath() const
     return m_gamekitRootPath + "/" + m_shortGameName + "/" + GAMEKIT_SETTINGS_FILE;
 }
 
-unsigned int GameKitSettings::SaveAwsCredentials(const std::string& profileName, const std::string& accessKey, const std::string& secretKey, FuncLogCallback logCb) const 
+unsigned int GameKitSettings::SaveAwsCredentials(const std::string& profileName, const std::string& accessKey, const std::string& secretKey, FuncLogCallback logCb) 
 {
     const std::string credentialsFileLocation = ToStdString(ProfileConfigFileAWSCredentialsProvider::GetCredentialsProfileFilename());
 
@@ -241,7 +284,7 @@ unsigned int GameKitSettings::SaveAwsCredentials(const std::string& profileName,
     Aws::String profileNameAwsStr = ToAwsString(profileName);
     if (profiles.find(profileNameAwsStr) != profiles.end())
     {
-        const std::string infoMessage = "Credential profile:" + profileName + " already exists, updating access and secret";
+        const std::string infoMessage = "Credential profile: " + profileName + " already exists, updating access and secret";
         Logging::Log(logCb, Level::Info, infoMessage.c_str());
 
         AWSCredentials credentials = profiles[profileNameAwsStr].GetCredentials();
@@ -261,7 +304,30 @@ unsigned int GameKitSettings::SaveAwsCredentials(const std::string& profileName,
     return persistAwsProfiles(configLoader, credentialsFileLocation, profiles, logCb);
 }
 
-unsigned int GameKitSettings::SetAwsAccessKey(const std::string& profileName, const std::string& newAccessKey, FuncLogCallback logCb) const
+bool GameKitSettings::AwsProfileExists(const std::string& profileName)
+{
+    const std::string credentialsFileLocation = ToStdString(ProfileConfigFileAWSCredentialsProvider::GetCredentialsProfileFilename());
+
+    AWSConfigFileProfileConfigLoader configLoader = AWSConfigFileProfileConfigLoader(ToAwsString(credentialsFileLocation));
+
+    std::ifstream credentialsFile = std::ifstream(credentialsFileLocation);
+
+    if (!credentialsFile || credentialsFile.peek() == std::ifstream::traits_type::eof() || !configLoader.Load())
+    {
+        return false;
+    }
+
+    AWSProfileConfigLoader::ProfilesContainer profiles = configLoader.GetProfiles();
+
+    if (profiles.find(ToAwsString(profileName)) == profiles.end())
+    {
+        return false;
+    }
+
+    return true;
+}
+
+unsigned int GameKitSettings::SetAwsAccessKey(const std::string& profileName, const std::string& newAccessKey, FuncLogCallback logCb)
 {
     const std::string credentialsFileLocation = ToStdString(ProfileConfigFileAWSCredentialsProvider::GetCredentialsProfileFilename());
 
@@ -283,7 +349,7 @@ unsigned int GameKitSettings::SetAwsAccessKey(const std::string& profileName, co
     return persistAwsProfiles(configLoader, credentialsFileLocation, profiles, logCb);
 }
 
-unsigned int GameKitSettings::SetAwsSecretKey(const std::string& profileName, const std::string& newSecretKey, FuncLogCallback logCb) const
+unsigned int GameKitSettings::SetAwsSecretKey(const std::string& profileName, const std::string& newSecretKey, FuncLogCallback logCb)
 {
     const std::string credentialsFileLocation = ToStdString(ProfileConfigFileAWSCredentialsProvider::GetCredentialsProfileFilename());
 
@@ -305,7 +371,7 @@ unsigned int GameKitSettings::SetAwsSecretKey(const std::string& profileName, co
     return persistAwsProfiles(configLoader, credentialsFileLocation, profiles, logCb);
 }
 
-unsigned int GameKitSettings::GetAwsProfile(const std::string& profileName, DISPATCH_RECEIVER_HANDLE receiver, FuncAwsProfileResponseCallback responseCallback, FuncLogCallback logCb) const
+unsigned int GameKitSettings::GetAwsProfile(const std::string& profileName, DISPATCH_RECEIVER_HANDLE receiver, FuncAwsProfileResponseCallback responseCallback, FuncLogCallback logCb)
 {
     const std::string credentialsFileLocation = ToStdString(ProfileConfigFileAWSCredentialsProvider::GetCredentialsProfileFilename());
 
@@ -326,7 +392,7 @@ unsigned int GameKitSettings::GetAwsProfile(const std::string& profileName, DISP
     return GAMEKIT_SUCCESS;
 }
 
-unsigned int GameKitSettings::readAwsCredentials(const std::string& profileName, AWSConfigFileProfileConfigLoader& configLoader, const std::string& credentialsFileLocation, AWSCredentials& credentials, AWSProfileConfigLoader::ProfilesContainer& profiles, FuncLogCallback logCb) const
+unsigned int GameKitSettings::readAwsCredentials(const std::string& profileName, AWSConfigFileProfileConfigLoader& configLoader, const std::string& credentialsFileLocation, AWSCredentials& credentials, AWSProfileConfigLoader::ProfilesContainer& profiles, FuncLogCallback logCb)
 {
     std::ifstream credentialsFile = std::ifstream(credentialsFileLocation);
 
@@ -347,7 +413,7 @@ unsigned int GameKitSettings::readAwsCredentials(const std::string& profileName,
 
     if (profiles.find(ToAwsString(profileName)) == profiles.end())
     {
-        const std::string errorMessage = "Credential profile" + profileName + " does not exist";
+        const std::string errorMessage = "Credential profile " + profileName + " does not exist";
         Logging::Log(logCb, Level::Error, errorMessage.c_str());
 
         return GAMEKIT_ERROR_CREDENTIALS_NOT_FOUND;
@@ -358,7 +424,7 @@ unsigned int GameKitSettings::readAwsCredentials(const std::string& profileName,
     return GAMEKIT_SUCCESS;
 }
 
-unsigned int GameKitSettings::persistAwsProfiles(AWSConfigFileProfileConfigLoader& configLoader, const std::string& credentialsFileLocation, const AWSProfileConfigLoader::ProfilesContainer& profiles, FuncLogCallback logCb) const
+unsigned int GameKitSettings::persistAwsProfiles(AWSConfigFileProfileConfigLoader& configLoader, const std::string& credentialsFileLocation, const AWSProfileConfigLoader::ProfilesContainer& profiles, FuncLogCallback logCb)
 {
     if (!configLoader.PersistProfiles(profiles))
     {

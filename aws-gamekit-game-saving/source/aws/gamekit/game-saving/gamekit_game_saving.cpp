@@ -52,6 +52,7 @@ GameSaving::GameSaving(Authentication::GameKitSessionManager* sessionManager, Fu
     Aws::Client::ClientConfiguration clientConfig;
     GameKit::DefaultClients::SetDefaultClientConfiguration(m_sessionManager->GetClientSettings(), clientConfig);
     clientConfig.region = m_sessionManager->GetClientSettings()[ClientSettings::Authentication::SETTINGS_IDENTITY_REGION];
+    // Extend timeouts to account for cold lambda starts
     clientConfig.connectTimeoutMs = TIMEOUT;
     clientConfig.httpRequestTimeoutMs = TIMEOUT;
     clientConfig.requestTimeoutMs = TIMEOUT;
@@ -91,6 +92,11 @@ void GameKit::GameSaving::GameSaving::SetFileActions(FileActions fileActions)
 
 unsigned int GameSaving::GetAllSlotSyncStatuses(DISPATCH_RECEIVER_HANDLE receiver, GameSavingResponseCallback resultCb, bool waitForAllPages, unsigned int pageSize)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::GameStateCloudSaving))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     // to make this function thread safe, lock it behind a mutex
     std::lock_guard<std::mutex> guard(m_gameSavingMutex);
 
@@ -222,6 +228,11 @@ unsigned int GameSaving::GetSlotSyncStatus(DISPATCH_RECEIVER_HANDLE receiver, Ga
 
 unsigned int GameSaving::DeleteSlot(DISPATCH_RECEIVER_HANDLE receiver, GameSavingSlotActionResponseCallback resultCb, const char* slotName)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::GameStateCloudSaving))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     // to make this function thread safe, lock it behind a mutex
     std::lock_guard<std::mutex> guard(m_gameSavingMutex);
 
@@ -381,6 +392,11 @@ bool GameSaving::isPlayerLoggedIn(const std::string& methodName) const
 
 unsigned int GameSaving::getSlotSyncStatusInternal(CachedSlot& slot)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::GameStateCloudSaving))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     const std::string uri = m_sessionManager->GetClientSettings()[ClientSettings::GameSaving::SETTINGS_GAME_SAVING_BASE_URL] + "/" + slot.slotName;
 
     JsonValue jsonBody;
@@ -409,6 +425,10 @@ unsigned int GameSaving::getSlotSyncStatusInternal(CachedSlot& slot)
 
 unsigned int GameSaving::uploadLocalSlot(GameSavingModel& model, CachedSlot& slot)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::GameStateCloudSaving))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
     // Validate metadata length
     if (strlen(model.metadata) > MAX_METADATA_BYTES)
     {
@@ -696,6 +716,11 @@ unsigned int GameSaving::validateSlotStatusForDownload(CachedSlot& slot, const b
 
 unsigned int GameSaving::getPresignedS3UrlForSlot(const char* slotName, const unsigned int urlTtl, std::string& returnedS3Url) const
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::GameStateCloudSaving))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     std::stringstream urlTtlString;
     urlTtlString << urlTtl;
     const std::string lambdaFunctionUri = m_sessionManager->GetClientSettings()[ClientSettings::GameSaving::SETTINGS_GAME_SAVING_BASE_URL] + "/" + slotName + "/download_url?time_to_live=" + urlTtlString.str();
@@ -838,7 +863,7 @@ unsigned int GameSaving::invokeCallback(DISPATCH_RECEIVER_HANDLE receiver, GameS
             returnedSlotList.push_back(slotEntry.second);
         }
 
-        resultCb(receiver, returnedSlotList.data(), (unsigned int)returnedSlotList.size(), actedOnSlot, callStatus);
+        resultCb(receiver, returnedSlotList.data(), (unsigned int)returnedSlotList.size(), &actedOnSlot, callStatus);
     }
 
     return callStatus;
@@ -868,7 +893,7 @@ unsigned int GameSaving::invokeCallback(
             returnedSlotList.push_back(slotEntry.second);
         }
 
-        resultCb(receiver, returnedSlotList.data(), (unsigned int)returnedSlotList.size(), actedOnSlot, data, dataSize, callStatus);
+        resultCb(receiver, returnedSlotList.data(), (unsigned int)returnedSlotList.size(), &actedOnSlot, data, dataSize, callStatus);
     }
 
     return callStatus;

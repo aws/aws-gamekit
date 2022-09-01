@@ -2,6 +2,7 @@ import os ;
 local NDKRoot = [ os.environ NDKROOT ] ;
 local ClangBin = [ os.environ CLANGPATH ] ;
 local AndroidApiLevel = [ os.environ ANDROID_API_LEVEL ] ;
+local AndroidSTL = [ os.environ STL_TYPE ] ;
 
 using clang : armeabiv7a
 :
@@ -42,7 +43,7 @@ $(ClangBin)/clang++
 <compileflags>-isystem
 <compileflags>$(NDKRoot)/sysroot/usr/include/arm-linux-androideabi
 <compileflags>-D__ANDROID_API__=$(AndroidApiLevel)
-<compileflags>-DANDROID_STL=c++_static
+<compileflags>-DANDROID_STL=$(AndroidSTL)
 <linkflags>-target
 <linkflags>armv7a-linux-androideabi21
 <archiver>$(NDKRoot)/toolchains/arm-linux-androideabi-4.9/prebuilt/windows-x86_64/arm-linux-androideabi/bin/ar

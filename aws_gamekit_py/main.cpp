@@ -653,11 +653,11 @@ namespace gkpy_shim
         {
             models::slot returnSlot{};
 
-            auto slotCallback = [&returnSlot](const Slot * syncedSlots, unsigned int slotCount, Slot slot, unsigned int callStatus)
+            auto slotCallback = [&returnSlot](const Slot* syncedSlots, unsigned int slotCount, const Slot* slot, unsigned int callStatus)
             {
-                returnSlot.slot_name = std::string(slot.slotName);
+                returnSlot.slot_name = std::string(slot->slotName);
             };
-            typedef LambdaDispatcher<decltype(slotCallback), void, const Slot*, unsigned int, Slot, unsigned int> SlotsDispatcher;
+            typedef LambdaDispatcher<decltype(slotCallback), void, const Slot*, unsigned int, const Slot*, unsigned int> SlotsDispatcher;
 
             unsigned int result = GameKitSaveSlot(game_saving_handle.low_level_handle, &slotCallback, SlotsDispatcher::Dispatch, slot.ToGameSavingModel());
             return py::make_tuple(result, returnSlot);

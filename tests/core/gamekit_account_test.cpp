@@ -42,8 +42,8 @@ public:
         testGamekitAccountInstance->SetSSMClient(accountSsmMock.get());
         testGamekitAccountInstance->SetCloudFormationClient(accountCfnMock.get());
         testGamekitAccountInstance->SetSecretsManagerClient(accountSecretsMock.get());
-        testGamekitAccountInstance->SetGameKitRoot(GAMEKIT_ROOT);
         testGamekitAccountInstance->SetPluginRoot(PLUGIN_ROOT);
+        testGamekitAccountInstance->SetGameKitRoot(GAMEKIT_ROOT);
     }
 
     void TearDown()
@@ -343,8 +343,8 @@ TEST_F(GameKitAccountTestFixture, SecretNotExists_TestDeleteSecret)
 TEST_F(GameKitAccountTestFixture, ValidFunctionsPath_TestUploadFunctions_Uploaded)
 {
     // arrange
-    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     testGamekitAccountInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
 
     SSMModel::PutParameterResult putParamResult;
     putParamResult.SetVersion(1);
@@ -370,8 +370,8 @@ TEST_F(GameKitAccountTestFixture, ValidFunctionsPath_TestUploadFunctions_Uploade
 TEST_F(GameKitAccountTestFixture, MainStackDoesNotExist_TestCreateMainStack_Created)
 {
     // arrange
-    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     testGamekitAccountInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
 
     auto stack = CfnModel::Stack();
     auto stacks = Aws::Vector<CfnModel::Stack>();
@@ -414,8 +414,8 @@ TEST_F(GameKitAccountTestFixture, MainStackDoesNotExist_TestCreateMainStack_Crea
 TEST_F(GameKitAccountTestFixture, MainStackExists_TestUpdateMainStack_Updated)
 {
     // arrange
-    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     testGamekitAccountInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
 
     auto stack = CfnModel::Stack();
     auto stacks = Aws::Vector<CfnModel::Stack>();
@@ -463,8 +463,8 @@ TEST_F(GameKitAccountTestFixture, MainStackExists_TestUpdateMainStack_Updated)
 TEST_F(GameKitAccountTestFixture, FeatureStacksDoNotExist_TestCreateFeatureStacks_Created)
 {
     // arrange
-    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     testGamekitAccountInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
 
     auto stack = CfnModel::Stack();
     auto stacks = Aws::Vector<CfnModel::Stack>();
@@ -517,8 +517,9 @@ TEST_F(GameKitAccountTestFixture, FeatureStacksDoNotExist_TestCreateFeatureStack
 TEST_F(GameKitAccountTestFixture, FeatureStacksExist_TestUpdateFeatureStacks_Updated)
 {
     // arrange
-    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     testGamekitAccountInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    testGamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
+
 
     auto stack = CfnModel::Stack();
     auto stacks = Aws::Vector<CfnModel::Stack>();

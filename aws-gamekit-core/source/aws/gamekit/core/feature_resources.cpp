@@ -7,6 +7,7 @@
 #include <aws/gamekit/core/internal/platform_string.h>
 #include <aws/gamekit/core/internal/wrap_boost_filesystem.h>
 #include <aws/gamekit/core/utils/file_utils.h>
+#include <aws/gamekit/core/gamekit_account.h>
 
 // Boost
 #include <boost/filesystem.hpp>
@@ -37,6 +38,7 @@ GameKitFeatureResources::GameKitFeatureResources(const AccountInfoCopy& accountI
 
     m_resouceStatusMap = {};
     m_stackName = GetStackName();
+
     GameKit::AwsApiInitializer::Initialize(m_logCb, this);
     this->InitializeDefaultAwsClients();
 
@@ -86,7 +88,17 @@ void GameKitFeatureResources::InitializeDefaultAwsClients()
 
 bool GameKit::GameKitFeatureResources::IsCloudFormationInstanceTemplatePresent() const
 {
-    return boost::filesystem::exists(m_gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + ResourceDirectories::CLOUDFORMATION_DIRECTORY + GetFeatureTypeString(m_featureType) + "/" + TemplateFileNames::CLOUDFORMATION_FILE);
+    return boost::filesystem::exists(m_instanceCloudformationPath);
+}
+
+bool GameKit::GameKitFeatureResources::AreLayerInstancesPresent() const
+{
+    return boost::filesystem::exists(m_instanceLayersPath);
+}
+
+bool GameKit::GameKitFeatureResources::AreFunctionInstancesPresent() const
+{
+    return boost::filesystem::exists(m_instanceFunctionsPath);
 }
 
 unsigned int GameKitFeatureResources::SaveDeployedCloudFormationTemplate() const
@@ -191,6 +203,11 @@ unsigned int GameKitFeatureResources::GetDeployedCloudFormationParameters(Deploy
 
 unsigned int GameKitFeatureResources::SaveCloudFormationInstance()
 {
+    return SaveCloudFormationInstance("UNKNOWN", "UNKNOWN");
+}
+
+unsigned int GameKitFeatureResources::SaveCloudFormationInstance(std::string sourceEngine, std::string pluginVersion)
+{
     // If region name cannot be converted to short region code, return an error (all s3 buckets use 5-letter short region codes)
     const std::string shortRegionCode = getShortRegionCode();
     if (shortRegionCode.empty())
@@ -201,6 +218,13 @@ unsigned int GameKitFeatureResources::SaveCloudFormationInstance()
     auto cfTemplate = this->getCloudFormationTemplate(TemplateType::Base);
     auto cfDashboard = this->getFeatureDashboardTemplate(TemplateType::Base);
     auto cfParams = this->getRawStackParameters(TemplateType::Base);
+
+    // regex swap description to describe the engine and version
+    std::regex targetLine("Description: \\(GAMEKIT(.*)\\).*");
+
+    std::string replacementDescription = "Description: (GAMEKIT-$1-" + sourceEngine + ") The AWS CloudFormation template for AWS GameKit" + GetFeatureTypeString(m_featureType) + ". v" + pluginVersion;
+    cfTemplate = std::regex_replace(cfTemplate, targetLine, replacementDescription);
+    cfDashboard = std::regex_replace(cfDashboard, targetLine, replacementDescription);
 
     // replace occurrances of GAMEKIT System Variables AWSGAMEKIT::SYS::*
     std::regex envVar(TemplateVars::BEGIN + TemplateVars::AWS_GAMEKIT_ENVIRONMENT + TemplateVars::END);
@@ -607,6 +631,33 @@ unsigned int GameKitFeatureResources::UploadFeatureLayers()
     return GAMEKIT_SUCCESS;
 }
 
+unsigned int GameKitFeatureResources::DeployFeatureLayers()
+{
+    unsigned int result = CreateAndSetLayersReplacementId();
+    if (result != GameKit::GAMEKIT_SUCCESS)
+    {
+        return result;
+    }
+
+    result = CompressFeatureLayers();
+    if (result != GameKit::GAMEKIT_SUCCESS)
+    {
+        CleanupTempFiles();
+        return result;
+    }
+
+    result = UploadFeatureLayers();
+    if (result != GameKit::GAMEKIT_SUCCESS)
+    {
+        CleanupTempFiles();
+        return result;
+    }
+
+    CleanupTempFiles();
+
+    return result;
+}
+
 unsigned int GameKitFeatureResources::CompressFeatureFunctions()
 {
     // loop through the feature's functions directory
@@ -741,6 +792,33 @@ unsigned int GameKitFeatureResources::UploadFeatureFunctions()
     return GAMEKIT_SUCCESS;
 }
 
+unsigned int GameKitFeatureResources::DeployFeatureFunctions()
+{
+    unsigned int result = CreateAndSetFunctionsReplacementId();
+    if (result != GameKit::GAMEKIT_SUCCESS)
+    {
+        return result;
+    }
+
+    result = CompressFeatureFunctions();
+    if (result != GameKit::GAMEKIT_SUCCESS)
+    {
+        CleanupTempFiles();
+        return result;
+    }
+
+    result = UploadFeatureFunctions();
+    if (result != GameKit::GAMEKIT_SUCCESS)
+    {
+        CleanupTempFiles();
+        return result;
+    }
+
+    CleanupTempFiles();
+
+    return result;
+}
+
 void GameKitFeatureResources::CleanupTempFiles()
 {
     if (!m_functionsReplacementId.empty())
@@ -791,7 +869,70 @@ std::string GameKitFeatureResources::GetCurrentStackStatus() const
     return status.empty() ? GameKit::ERR_STACK_CURRENT_STATUS_UNDEPLOYED : status;
 }
 
-unsigned int GameKitFeatureResources::DescribeStackResources(FuncResourceInfoCallback resourceInfoCb) const
+void GameKitFeatureResources::UpdateDashboardDeployStatus(std::unordered_set<FeatureType> features) const
+{
+    Aws::String nextToken = "";
+
+    auto stackFilter = Aws::Vector<CfnModel::StackStatus>();
+    stackFilter.push_back(CfnModel::StackStatus::CREATE_COMPLETE);
+    stackFilter.push_back(CfnModel::StackStatus::UPDATE_COMPLETE);
+
+
+    GameKitSettings settings = GameKitSettings(m_gamekitRoot, "", m_accountInfo.gameName, m_accountInfo.environment.GetEnvironmentString(), m_logCb);
+    std::map<std::string, std::string> enabledMap = { {"cloudwatch_dashboard_enabled",  "true"} };
+    std::map<std::string, std::string> disabledMap = { {"cloudwatch_dashboard_enabled", "false"} };
+    std::unordered_set<FeatureType> enabledFeatureDashboards;
+
+    // Loop for pagination
+    do
+    {
+        // List functioning cloudformation stacks
+        auto listRequest = CfnModel::ListStacksRequest().WithStackStatusFilter(stackFilter);
+        if (!nextToken.empty())
+        {
+            listRequest.SetNextToken(nextToken);
+        }
+        CfnModel::ListStacksOutcome outcome = m_cfClient->ListStacks(listRequest);
+
+        if (!outcome.IsSuccess())
+        {
+            return;
+        }
+
+        nextToken = outcome.GetResult().GetNextToken();
+        Aws::Vector<CfnModel::StackSummary> stacks = outcome.GetResult().GetStackSummaries();
+
+        for (auto s : stacks)
+        {
+            // Check if this stack matches the name of the dashboard for the feature given
+            Aws::String awsStackName = s.GetStackName();
+            std::string stackName = ToStdString(awsStackName);
+
+            for (FeatureType feature : features)
+            {
+                if (stackName.substr(0, getStackName(feature).size()) == getStackName(feature) && (stackName.find("CloudWatchDashboardStack") != Aws::String::npos))
+                {
+                    settings.SetFeatureVariables(feature, enabledMap);
+                    enabledFeatureDashboards.insert(feature);
+                }
+            }
+        }
+    } while(!nextToken.empty());
+
+    for (FeatureType f : enabledFeatureDashboards)
+    {
+        features.erase(f);
+    }
+    for (FeatureType f : features)
+    {
+        // These features don't have a dashboard deployed, make sure they're set to disabled
+        settings.SetFeatureVariables(f, disabledMap);
+    }
+
+    settings.SaveSettings();
+}
+
+unsigned int GameKitFeatureResources::internalDescribeFeatureResources(FuncResourceInfoCallback resourceInfoCb, DISPATCH_RECEIVER_HANDLE receiver, DispatchedResourceInfoCallback dispatchedCb) const
 {
     auto describeStackResourcesRequest = CfnModel::DescribeStackResourcesRequest().WithStackName(ToAwsString(m_stackName));
 
@@ -807,7 +948,14 @@ unsigned int GameKitFeatureResources::DescribeStackResources(FuncResourceInfoCal
             CfnModel::ResourceStatus status = resource.GetResourceStatus();
             std::string statusStr = ToStdString(CfnModel::ResourceStatusMapper::GetNameForResourceStatus(status));
 
-            resourceInfoCb(logicalResourceId, resourceType, statusStr.c_str());
+            if (receiver != nullptr && dispatchedCb != nullptr)
+            {
+                dispatchedCb(receiver, logicalResourceId, resourceType, statusStr.c_str());
+            }
+            else if (resourceInfoCb != nullptr)
+            {
+                resourceInfoCb(logicalResourceId, resourceType, statusStr.c_str());
+            }
         }
 
         return GameKit::GAMEKIT_SUCCESS;
@@ -815,6 +963,16 @@ unsigned int GameKitFeatureResources::DescribeStackResources(FuncResourceInfoCal
 
     Logging::Log(m_logCb, Level::Error, outcome.GetError().GetMessage().c_str(), this);
     return GameKit::GAMEKIT_ERROR_CLOUDFORMATION_DESCRIBE_RESOURCE_FAILED;
+}
+
+unsigned int GameKitFeatureResources::DescribeStackResources(FuncResourceInfoCallback resourceInfoCb) const
+{
+    return internalDescribeFeatureResources(resourceInfoCb=resourceInfoCb);
+}
+
+unsigned int GameKitFeatureResources::DescribeStackResources(const DISPATCH_RECEIVER_HANDLE dispatchReceiver, DispatchedResourceInfoCallback resourceInfoCb) const
+{
+    return internalDescribeFeatureResources(nullptr, dispatchReceiver, resourceInfoCb);
 }
 
 std::string GameKitFeatureResources::getFeatureLayerNameFromDirName(const std::string& layerDirName) const
@@ -1047,7 +1205,7 @@ unsigned int GameKitFeatureResources::writeClientConfigurationWithOutputs(Aws::V
             paramVal = std::regex_replace(paramVal, key, output.GetOutputValue());
         }
 
-        auto existingVal = paramsYml[paramKey].Scalar();
+        std::string existingVal = paramsYml[paramKey].Scalar();
         if (existingVal != paramVal)
         {
             // replacement values in actual config
@@ -1141,13 +1299,18 @@ unsigned int GameKitFeatureResources::DeleteFeatureStack()
 
 std::string GameKitFeatureResources::GetStackName() const
 {
+    return getStackName(m_featureType);
+}
+
+std::string GameKitFeatureResources::getStackName(FeatureType featureType) const
+{
     const std::string gameName = m_accountInfo.gameName;
     std::string stackName = "gamekit-";
     stackName.append(m_accountInfo.environment.GetEnvironmentString())
         .append("-")
         .append(gameName)
         .append("-")
-        .append(GetFeatureTypeString(m_featureType));
+        .append(GetFeatureTypeString(featureType));
 
     return stackName;
 }
@@ -1528,6 +1691,138 @@ unsigned int GameKitFeatureResources::writeCloudFormationDashboardInstance(const
     Logging::Log(m_logCb, Level::Info, logMsg.c_str(), this);
 
     return GAMEKIT_SUCCESS;
+}
+
+unsigned int GameKitFeatureResources::ConditionallyCreateOrUpdateFeatureResources(FeatureType targetFeature, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback) 
+{
+    unsigned int result = GAMEKIT_SUCCESS;
+    FeatureStatus stackStatus = GetFeatureStatusFromCloudFormationStackStatus(GetCurrentStackStatus());
+
+    if (stackStatus == FeatureStatus::Running)
+    {
+        if (dispatchReceiver != nullptr && responseCallback != nullptr)
+        {
+            const std::string output = "The AWS resources for this game feature are currently being updated by another user.";
+            responseCallback(dispatchReceiver, output.c_str());
+        }
+        return GAMEKIT_SUCCESS;
+    }
+
+    if (stackStatus == FeatureStatus::Undeployed)
+    {
+        if (boost::filesystem::exists(m_instanceLayersPath))
+        {
+            std::string logMsg = std::string("Using existing Lambda layer instance files.");
+            Logging::Log(m_logCb, Level::Info, logMsg.c_str(), this);
+        }
+        else
+        {
+            result = SaveLayerInstances();
+            if (result != GAMEKIT_SUCCESS)
+            {
+                if (dispatchReceiver != nullptr && responseCallback != nullptr)
+                {
+                    const std::string output = "Unable to retrieve deployed Lambda Layers for feature";
+                    responseCallback(dispatchReceiver, output.c_str());
+                }
+                return result;
+            }
+        }
+
+        if (boost::filesystem::exists(m_instanceFunctionsPath))
+        {
+            std::string logMsg = std::string("Using existing Lambda Function instance files.");
+            Logging::Log(m_logCb, Level::Info, logMsg.c_str(), this);
+        }
+        else
+        {
+            result = SaveFunctionInstances();
+            if (result != GAMEKIT_SUCCESS)
+            {
+                if (dispatchReceiver != nullptr && responseCallback != nullptr)
+                {
+                    const std::string output = "Unable to retrieve deployed Lambda Function for feature";
+                    responseCallback(dispatchReceiver, output.c_str());
+                }
+                return result;
+            }
+        }
+    }
+
+    if (!IsCloudFormationInstanceTemplatePresent()) {
+        result = SaveDeployedCloudFormationTemplate();
+        if (result != GAMEKIT_SUCCESS)
+        {
+            if (dispatchReceiver != nullptr && responseCallback != nullptr)
+            {
+                const std::string output = "Unable to retrieve deployed CloudFormation template for feature";
+                responseCallback(dispatchReceiver, output.c_str());
+            }
+            return result;
+        }
+    }
+
+    GameKit::GameKitAccount gamekitAccount(m_accountInfo, m_credentials, m_logCb);
+    gamekitAccount.SetPluginRoot(m_pluginRoot);
+    gamekitAccount.SetGameKitRoot(m_gamekitRoot);
+    gamekitAccount.InitializeDefaultAwsClients();
+ 
+    result = gamekitAccount.UploadDashboards();
+    if (result != GAMEKIT_SUCCESS)
+    {
+        if (dispatchReceiver != nullptr && responseCallback != nullptr)
+        {
+            const std::string output = "Failed to upload Dashboard";
+            responseCallback(dispatchReceiver, output.c_str());
+        }
+        return result;
+    }
+
+    result = UploadFeatureLayers();
+    if (result != GAMEKIT_SUCCESS)
+    {
+        if (dispatchReceiver != nullptr && responseCallback != nullptr)
+        {
+            const std::string output = "Failed to upload feature layers";
+            responseCallback(dispatchReceiver, output.c_str());
+        }
+        return result;
+    }
+
+    result = UploadFeatureFunctions();
+    if (result != GAMEKIT_SUCCESS)
+    {
+        if (dispatchReceiver != nullptr && responseCallback != nullptr)
+        {
+            const std::string output = "Failed to upload feature functions";
+            responseCallback(dispatchReceiver, output.c_str());
+        }
+        return result;
+    }
+
+    result = CreateOrUpdateFeatureStack();
+    if (result != GAMEKIT_SUCCESS)
+    {
+        if (dispatchReceiver != nullptr && responseCallback != nullptr)
+        {
+            const std::string output = "Failed to create feature stack";
+            responseCallback(dispatchReceiver, output.c_str());
+        }
+        return result;
+    }
+
+    result = gamekitAccount.DeployApiGatewayStage();
+    if (result != GAMEKIT_SUCCESS)
+    {
+        if (dispatchReceiver != nullptr && responseCallback != nullptr)
+        {
+            const std::string output = "Failed to deploy API Gateway";
+            responseCallback(dispatchReceiver, output.c_str());
+        }
+        return result;
+    }
+
+    return result;
 }
 
 #pragma endregion

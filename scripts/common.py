@@ -14,20 +14,24 @@ FEATURES = ["core", "achievements", "identity", "game-saving", "user-gameplay-da
 REPOSITORY_ROOT = pathlib.Path(__file__).absolute().parents[1]
 GAMEKIT_ENV_FILE = pathlib.Path(REPOSITORY_ROOT / ".env")
 
-def run_and_log(command: list):
+def run_and_log(command, allowListExitCodes=[0]):
     logging.basicConfig(level=logging.INFO)
     logging.info(f"Running command: {command} from directory: {os.getcwd()}")
     try:
-        output = subprocess.check_output(command)
+        output = subprocess.check_output(command, shell=(type(command) == str))
         for line in output.decode('utf-8').split("\n"):
             logging.info(line)
     except FileNotFoundError as err:
         logging.error(f"Command: {command} from directory: {os.getcwd()} failed. Could not find command on path.")
         raise err
     except subprocess.CalledProcessError as err:
-        logging.error(f"Command: {command} from directory: {os.getcwd()} failed.")
+        logging.error(f"Command: {command} from directory: {os.getcwd()} failed with return code: {err.returncode}")
         for line in err.output.decode('utf-8').split('\n'):
             logging.info(line)
+
+        if err.returncode in allowListExitCodes:
+            return
+
         raise err
 
 def __in_gamekit_env__(key):

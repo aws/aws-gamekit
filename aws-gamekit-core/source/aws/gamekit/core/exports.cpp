@@ -4,6 +4,7 @@
 #include <aws/gamekit/core/exports.h>
 
 #include <aws/gamekit/core/awsclients/api_initializer.h>
+#include <aws/gamekit/core/deployment_orchestrator.h>
 #include <aws/gamekit/core/feature_resources.h>
 #include <aws/gamekit/core/gamekit_account.h>
 #include <aws/gamekit/core/gamekit_settings.h>
@@ -66,8 +67,8 @@ GAMEKIT_ACCOUNT_INSTANCE_HANDLE GameKitAccountInstanceCreate(const GameKit::Acco
 GAMEKIT_ACCOUNT_INSTANCE_HANDLE GameKitAccountInstanceCreateWithRootPaths(const GameKit::AccountInfo accountInfo, const GameKit::AccountCredentials credentials, const char* rootPath, const char* pluginRootPath, FuncLogCallback logCb)
 {
     GameKit::GameKitAccount* gamekitAccount = new GameKit::GameKitAccount(accountInfo, credentials, logCb);
-    gamekitAccount->SetGameKitRoot(rootPath);
     gamekitAccount->SetPluginRoot(pluginRootPath);
+    gamekitAccount->SetGameKitRoot(rootPath);
     gamekitAccount->InitializeDefaultAwsClients();
     return gamekitAccount;
 }
@@ -187,8 +188,8 @@ GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE GameKitResourcesInstanceCreate(const Ga
 GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE GameKitResourcesInstanceCreateWithRootPaths(const GameKit::AccountInfo accountInfo, const GameKit::AccountCredentials credentials, GameKit::FeatureType featureType, const char* rootPath, const char* pluginRootPath, FuncLogCallback logCb)
 {
     GameKit::GameKitFeatureResources* gamekitFeature = new GameKit::GameKitFeatureResources(accountInfo, credentials, featureType, logCb);
-    gamekitFeature->SetGameKitRoot(rootPath);
     gamekitFeature->SetPluginRoot(pluginRootPath);
+    gamekitFeature->SetGameKitRoot(rootPath);
     return gamekitFeature;
 }
 #pragma endregion
@@ -247,6 +248,11 @@ unsigned int GameKitResourcesCreateEmptyConfigFile(GAMEKIT_FEATURERESOURCES_INST
 unsigned int GameKitResourcesInstanceCreateOrUpdateStack(GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE resourceInstance)
 {
     return ((GameKit::GameKitFeatureResources*)resourceInstance)->CreateOrUpdateFeatureStack();
+}
+
+unsigned int GameKitResourcesInstanceConditionallyCreateOrUpdateStack(GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE resourceInstance, GameKit::FeatureType targetFeature, DISPATCH_RECEIVER_HANDLE receiver, CharPtrCallback resultsCb)
+{
+    return ((GameKit::GameKitFeatureResources*)resourceInstance)->ConditionallyCreateOrUpdateFeatureResources(targetFeature, receiver, resultsCb);
 }
 
 unsigned int GameKitResourcesInstanceDeleteStack(GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE resourceInstance)
@@ -438,6 +444,11 @@ unsigned int GameKitSettingsSave(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstan
     return ((GameKit::GameKitSettings*)settingsInstance)->SaveSettings();
 }
 
+GAMEKIT_API unsigned int GameKitSettingsPopulateAndSave(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* gameName, const char* envCode, const char* region)
+{
+    return ((GameKit::GameKitSettings*)settingsInstance)->PopulateAndSave(gameName, envCode, region);
+}
+
 void GameKitSettingsGetGameName(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, DISPATCH_RECEIVER_HANDLE receiver, CharPtrCallback resultsCb)
 {
     const std::string gameInfo = ((GameKit::GameKitSettings*)settingsInstance)->GetGameName();
@@ -502,23 +513,119 @@ void GameKitSettingsReload(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance)
     ((GameKit::GameKitSettings*)settingsInstance)->Reload();
 }
 
-unsigned int GameKitSaveAwsCredentials(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, const char* accessKey, const char* secretKey, FuncLogCallback logCb)
+unsigned int GameKitSaveAwsCredentials(const char* profileName, const char* accessKey, const char* secretKey, FuncLogCallback logCb)
 {
-    return ((GameKit::GameKitSettings*)settingsInstance)->SaveAwsCredentials(profileName, accessKey, secretKey, logCb);
+    return GameKit::GameKitSettings::SaveAwsCredentials(profileName, accessKey, secretKey, logCb);
 }
 
-unsigned int GameKitSetAwsAccessKey(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, const char* newAccessKey, FuncLogCallback logCb)
+bool GameKitAwsProfileExists(const char* profileName)
 {
-    return ((GameKit::GameKitSettings*)settingsInstance)->SetAwsAccessKey(profileName, newAccessKey, logCb);
+    return GameKit::GameKitSettings::AwsProfileExists(profileName);
 }
 
-unsigned int GameKitSetAwsSecretKey(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, const char* newSecretKey, FuncLogCallback logCb)
+unsigned int GameKitSetAwsAccessKey(const char* profileName, const char* newAccessKey, FuncLogCallback logCb)
 {
-    return ((GameKit::GameKitSettings*)settingsInstance)->SetAwsSecretKey(profileName, newSecretKey, logCb);
+    return GameKit::GameKitSettings::SetAwsAccessKey(profileName, newAccessKey, logCb);
 }
 
-unsigned int GameKitGetAwsProfile(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, DISPATCH_RECEIVER_HANDLE receiver, FuncAwsProfileResponseCallback responseCallback, FuncLogCallback logCb)
+unsigned int GameKitSetAwsSecretKey(const char* profileName, const char* newSecretKey, FuncLogCallback logCb)
 {
-    return ((GameKit::GameKitSettings*)settingsInstance)->GetAwsProfile(profileName, receiver, responseCallback, logCb);
+    return GameKit::GameKitSettings::SetAwsSecretKey(profileName, newSecretKey, logCb);
 }
+
+unsigned int GameKitGetAwsProfile(const char* profileName, DISPATCH_RECEIVER_HANDLE receiver, FuncAwsProfileResponseCallback responseCallback, FuncLogCallback logCb)
+{
+    return GameKit::GameKitSettings::GetAwsProfile(profileName, receiver, responseCallback, logCb);
+}
+#pragma endregion
+
+
+#pragma region GameKitDeploymentOrchestrator
+
+GAMEKIT_SETTINGS_INSTANCE_HANDLE GameKitDeploymentOrchestratorCreate(const char* baseTemplatesFolder, const char* instanceFilesFolder, const char* sourceEngine, const char* pluginVersion, FuncLogCallback logCb)
+{
+    return new GameKit::GameKitDeploymentOrchestrator(baseTemplatesFolder, instanceFilesFolder, sourceEngine, pluginVersion, logCb);
+}
+
+void GameKitDeploymentOrchestratorInstanceRelease(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance)
+{
+    delete ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance);
+}
+
+unsigned int GameKitDeploymentOrchestratorSetCredentials(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::AccountInfo accountInfo, GameKit::AccountCredentials accountCredentials)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->SetCredentials(accountInfo, accountCredentials);
+}
+
+GameKit::FeatureStatus GameKitDeploymentOrchestratorGetFeatureStatus(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->GetFeatureStatus(feature);
+}
+
+GameKit::FeatureStatusSummary GameKitDeploymentOrchestratorGetFeatureStatusSummary(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->GetFeatureStatusSummary(feature);
+}
+
+bool GameKitDeploymentOrchestratorIsFeatureDeploymentInProgress(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->IsFeatureDeploymentInProgress(feature);
+}
+
+bool GameKitDeploymentOrchestratorIsFeatureUpdating(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->IsFeatureUpdating(feature);
+}
+
+bool GameKitDeploymentOrchestratorIsAnyFeatureUpdating(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->IsAnyFeatureUpdating();
+}
+
+unsigned int GameKitDeploymentOrchestratorRefreshFeatureStatus(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->RefreshFeatureStatus(feature, receiver, resultCb);
+}
+
+unsigned int GameKitDeploymentOrchestratorRefreshFeatureStatuses(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->RefreshFeatureStatuses(receiver, resultCb);
+}
+
+bool GameKitDeploymentOrchestratorCanCreateFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, CanExecuteDeploymentActionCallback resultCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->CanCreateFeature(feature, receiver, resultCb);
+}
+
+bool GameKitDeploymentOrchestratorCanRedeployFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, CanExecuteDeploymentActionCallback resultCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->CanRedeployFeature(feature, receiver, resultCb);
+}
+
+bool GameKitDeploymentOrchestratorCanDeleteFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, CanExecuteDeploymentActionCallback resultCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->CanDeleteFeature(feature, receiver, resultCb);
+}
+
+unsigned int GameKitDeploymentOrchestratorCreateFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->CreateFeature(feature, receiver, resultCb);
+}
+
+unsigned int GameKitDeploymentOrchestratorRedeployFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->RedeployFeature(feature, receiver, resultCb);
+}
+
+unsigned int GameKitDeploymentOrchestratorDeleteFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->DeleteFeature(feature, receiver, resultCb);
+}
+
+GAMEKIT_API unsigned int GameKitDeploymentOrchestratorDescribeFeatureResources(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature,
+    DISPATCH_RECEIVER_HANDLE receiver, DispatchedResourceInfoCallback resourceInfoCb)
+{
+    return ((GameKit::GameKitDeploymentOrchestrator*)deploymentOrchestratorInstance)->DescribeFeatureResources(feature, receiver, resourceInfoCb);
+}
+
 #pragma endregion

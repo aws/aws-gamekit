@@ -31,6 +31,7 @@ Achievements::Achievements(FuncLogCallback logCb, Authentication::GameKitSession
     Aws::Client::ClientConfiguration clientConfig;
     GameKit::DefaultClients::SetDefaultClientConfiguration(m_sessionManager->GetClientSettings(), clientConfig);
     clientConfig.region = m_sessionManager->GetClientSettings()[GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_REGION].c_str();
+    // Extend timeouts to account for cold lambda starts
     clientConfig.connectTimeoutMs = TIMEOUT;
     clientConfig.httpRequestTimeoutMs = TIMEOUT;
     clientConfig.requestTimeoutMs = TIMEOUT;
@@ -49,6 +50,11 @@ Achievements::~Achievements()
 #pragma region Public Methods
 unsigned int Achievements::UpdateAchievementForPlayer(const char* achievementId, unsigned int incrementBy, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::Achievements))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     const std::string uri = m_sessionManager->GetClientSettings()[GameKit::ClientSettings::Achievements::SETTINGS_ACHIEVEMENTS_API_GATEWAY_BASE_URL] + "/" + achievementId + "/unlock";
     const std::string idToken = m_sessionManager->GetToken(GameKit::TokenType::IdToken);
     if (idToken.empty())
@@ -78,6 +84,11 @@ unsigned int Achievements::UpdateAchievementForPlayer(const char* achievementId,
 
 unsigned int Achievements::GetAchievementForPlayer(const char* achievementId, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::Achievements))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     const std::string uri = m_sessionManager->GetClientSettings()[GameKit::ClientSettings::Achievements::SETTINGS_ACHIEVEMENTS_API_GATEWAY_BASE_URL] + "/" + achievementId;
     const std::string idToken = m_sessionManager->GetToken(GameKit::TokenType::IdToken);
     if (idToken.empty())
@@ -105,6 +116,11 @@ unsigned int Achievements::GetAchievementForPlayer(const char* achievementId, co
 
 unsigned int Achievements::ListAchievementsForPlayer(unsigned int pageSize, bool waitForAllPages, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::Achievements))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     const std::string uri = m_sessionManager->GetClientSettings()[GameKit::ClientSettings::Achievements::SETTINGS_ACHIEVEMENTS_API_GATEWAY_BASE_URL];
     const std::string idToken = m_sessionManager->GetToken(GameKit::TokenType::IdToken);
     if (idToken.empty())

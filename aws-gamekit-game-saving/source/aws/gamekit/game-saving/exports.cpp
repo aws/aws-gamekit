@@ -24,6 +24,11 @@ void GameKitAddLocalSlots(GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance
     return static_cast<GameSaving*>(gameSavingInstance)->AddLocalSlots(localSlotInformationFilePaths, arraySize);
 }
 
+void GameKitClearSyncedSlots(GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance)
+{
+    static_cast<GameSaving*>(gameSavingInstance)->ClearSyncedSlots();
+}
+
 void GameKitSetFileActions(GAMEKIT_GAME_SAVING_INSTANCE_HANDLE gameSavingInstance, FileActions fileActions)
 {
     return static_cast<GameSaving*>(gameSavingInstance)->SetFileActions(fileActions);

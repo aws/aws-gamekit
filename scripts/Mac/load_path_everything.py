@@ -16,9 +16,8 @@ from common import code_sign
 # Not idempotent, only run once after recompiling for a specific BuildType (Debug/Release)
 
 def fix_rpath(target_lib):
-    otool_cmd = f"otool -l {target_lib}| grep RPATH -A2"
+    otool_cmd = f"otool -l '{target_lib}'| grep RPATH -A2"
     output = subprocess.check_output(otool_cmd, shell=True)
-
     rpaths = []
     for line in output.decode('utf-8').split("\n"):
         # look for line that matches: path <absolute_path> (offset <number>)
@@ -53,7 +52,7 @@ def fix_symlinks(target_lib):
 
     for link, target in symlink_dict.items():
         # Change every dylib link from link to the links target.
-        cmd = f"install_name_tool -change @rpath/{link} @rpath/{target} {target_lib}"
+        cmd = f"install_name_tool -change @rpath/{link} @rpath/{target} '{target_lib}'"
         try:
             subprocess.run(cmd, shell=True)
         except:

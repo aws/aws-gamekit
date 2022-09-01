@@ -6,6 +6,7 @@
 #include <aws/gamekit/authentication/gamekit_session_manager.h>
 #include <aws/gamekit/core/internal/platform_string.h>
 #include <aws/gamekit/core/utils/file_utils.h>
+#include <aws/gamekit/core/utils/timestamp_ticker.h>
 
 // yaml-cpp
 #include <yaml-cpp/yaml.h>
@@ -64,7 +65,6 @@ void GameKitSessionManager::InitializeDefaultAwsClients()
     }
 
     m_awsClientsInitializedInternally = true;
-    Aws::Client::ClientConfiguration clientConfig;
     m_cognitoClient = DefaultClients::GetDefaultCognitoIdentityProviderClient(DefaultClients::GetDefaultClientConfigurationWithRegion(
         GetClientSettings(),
         ClientSettings::Authentication::SETTINGS_IDENTITY_REGION));
@@ -97,7 +97,7 @@ void GameKitSessionManager::SetSessionExpiration(int expirationInSeconds)
         int interval = std::max<int>(expirationInSeconds - DEFAULT_REFRESH_SECONDS_BEFORE_EXPIRATION,
             expirationInSeconds / 2);
 
-        m_tokenRefresher = Aws::MakeShared<Utils::Ticker>("tokenRefresher", interval, std::bind(&GameKitSessionManager::executeTokenRefresh, this), m_logCb);
+        m_tokenRefresher = Aws::MakeShared<Utils::TimestampTicker>("tokenRefresher", interval, std::bind(&GameKitSessionManager::executeTokenRefresh, this), m_logCb);
 
         std::stringstream buffer;
         buffer << "GameKitSessionManager::SetSessionExpiration(): Next token refresh in " << interval << " seconds.";
@@ -230,20 +230,11 @@ void GameKitSessionManager::executeTokenRefresh()
     }
 
     Aws::String accessToken = outcome.GetResult().GetAuthenticationResult().GetAccessToken();
-    Aws::String refreshToken = outcome.GetResult().GetAuthenticationResult().GetRefreshToken();
     Aws::String idToken = outcome.GetResult().GetAuthenticationResult().GetIdToken();
     int expiresIn = outcome.GetResult().GetAuthenticationResult().GetExpiresIn();
 
     SetToken(TokenType::AccessToken, ToStdString(accessToken));
     SetToken(TokenType::IdToken, ToStdString(idToken));
-    SetToken(TokenType::RefreshToken, ToStdString(refreshToken));
-
-    if (!refreshToken.empty())
-    {
-        Logger::Logging::Log(m_logCb, Logger::Level::Info, "SessionManager::executeTokenRefresh: No refresh token present, stopping token refresh loop.");
-        m_tokenRefresher->AbortLoop();
-        return;
-    }
 
     // Execute refresh N minutes before token expires, or halfway to expiration if it is very soon
     int interval = std::max<int>(expiresIn - DEFAULT_REFRESH_SECONDS_BEFORE_EXPIRATION, expiresIn / 2);

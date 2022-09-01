@@ -84,6 +84,7 @@ namespace GameKit
 
     public:
         GameKitAccount(const AccountInfo& accountInfo, const AccountCredentials& credentials, FuncLogCallback logCallback);
+        GameKitAccount(const AccountInfoCopy& accountInfo, const AccountCredentialsCopy& credentials, FuncLogCallback logCallback);
         virtual ~GameKitAccount();
 
         bool HasBootstrapBucket();
@@ -125,10 +126,11 @@ namespace GameKit
         // The value GAMEKIT_ROOT where instance templates and settings are going to be stored
         inline void SetGameKitRoot(const std::string& gamekitRoot)
         {
+            std::string shortRegionCode = getShortRegionCode();
             m_gamekitRoot = gamekitRoot;
-            m_instanceLayersPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + ResourceDirectories::LAYERS_DIRECTORY;
-            m_instanceFunctionsPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + ResourceDirectories::FUNCTIONS_DIRECTORY;
-            m_instanceCloudformationPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + ResourceDirectories::CLOUDFORMATION_DIRECTORY;
+            m_instanceLayersPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + "/" + shortRegionCode + ResourceDirectories::LAYERS_DIRECTORY;
+            m_instanceFunctionsPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + "/" + shortRegionCode + ResourceDirectories::FUNCTIONS_DIRECTORY;
+            m_instanceCloudformationPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + "/" + shortRegionCode + ResourceDirectories::CLOUDFORMATION_DIRECTORY;
         }
 
         // Returns the GAMEKIT_ROOT where instance templates and settings are stored
@@ -178,7 +180,8 @@ namespace GameKit
         unsigned int CreateOrUpdateStacks();
         unsigned int CreateOrUpdateMainStack();
         unsigned int CreateOrUpdateFeatureStacks();
-        unsigned int DeployApiGatewayStage();
+        
+        virtual unsigned int DeployApiGatewayStage();
 
         // Initializes the AWS Clients internally.
         // Clients initialized witht his method will be deleted on ~GameKitAccount().

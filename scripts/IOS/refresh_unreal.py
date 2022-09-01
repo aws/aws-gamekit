@@ -19,13 +19,16 @@ def refresh(type, plugin_path, certificate_name=None):
     curl = set_env_path("GAMEKIT_CURL_PATH_ios", "Path to curl (ex: ~/development/Build-OpenSSL-cURL): ")
 
     copy_libs(".a", destination, binary_dir=pathlib.Path(aws_sdk, "install", "arm64", "ios", type, "lib"))
-    copy_libs(".a", destination / "boost", binary_dir=pathlib.Path(boost, "ios", "build", "arm64"))
+    copy_libs(".a", destination / "boost", binary_dir=pathlib.Path(boost, "build", "boost", "1.76.0", "ios", "release", "build", "iphoneos", "arm64"))
 
     copy_file(pathlib.Path(yaml_cpp, "build_ios", "install", "arm64", type, "lib", "libyaml-cppd.a"), destination / "yaml-cpp")
     copy_file(pathlib.Path(curl, "nghttp2", "iOS", "arm64", "lib", "libnghttp2.a"), destination / "nghttp2")
-    copy_file(pathlib.Path(curl, "curl", "lib", "libcurl.a"), destination / "curl")
+    copy_file(pathlib.Path(curl, "curl", "lib", "libcurl_iOS.a"), destination / "curl")
     copy_file(pathlib.Path(curl, "openssl", "iOS", "lib", "libssl.a"), destination / "openssl")
     copy_file(pathlib.Path(curl, "openssl", "iOS", "lib", "libcrypto.a"), destination / "openssl")
+
+    # Rename libcurl_ios to just libcurl since it is the only libcurl being used
+    os.rename(str(pathlib.Path(destination, "curl", "libcurl_iOS.a")), str(pathlib.Path(destination, "curl", "libcurl.a")))
 
     # Only curl and openssl libs need to be codesigned
     if certificate_name:

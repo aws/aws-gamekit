@@ -157,7 +157,7 @@ namespace GameKit
                 IRetryStrategy() {}
                 virtual ~IRetryStrategy() {}
 
-                virtual void IncreaseCounter() = 0;
+                virtual void IncreaseThreshold() = 0;
                 virtual bool ShouldRetry() = 0;
                 virtual void Reset() = 0;
             };
@@ -169,7 +169,7 @@ namespace GameKit
                 ConstantIntervalStrategy() {}
                 virtual ~ConstantIntervalStrategy() {}
 
-                virtual void IncreaseCounter() override { /* No-op by design */ };
+                virtual void IncreaseThreshold() override { /* No-op by design */ };
                 virtual bool ShouldRetry() override { /* Always true by design */  return true; };
                 virtual void Reset() override { /* No-op by design */ };
             };
@@ -178,7 +178,7 @@ namespace GameKit
             class GAMEKIT_API ExponentialBackoffStrategy : public IRetryStrategy
             {
             private:
-                unsigned int counter;
+                unsigned int tickCounter;
                 unsigned int maxAttempts;
                 unsigned int currentStep;
                 unsigned int retryThreshold;
@@ -188,7 +188,7 @@ namespace GameKit
                 ExponentialBackoffStrategy(unsigned int maxAttempts, FuncLogCallback logCb = nullptr);
                 virtual ~ExponentialBackoffStrategy();
 
-                virtual void IncreaseCounter() override;
+                virtual void IncreaseThreshold() override;
                 virtual bool ShouldRetry() override;
                 virtual void Reset() override;
             };

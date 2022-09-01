@@ -24,13 +24,13 @@ namespace GameKit
     class GAMEKIT_API AwsRegionMappings
     {
     private:
-        std::string m_pluginRootPath;
+        std::string m_baseTemplatesFolder;
         YAML::Node m_regionShortCodes;
         FuncLogCallback m_logCb;
 
         // Make the constructors and destructor private to prevent duplicate instances
         AwsRegionMappings() {};
-        AwsRegionMappings(const std::string& pluginRootPath, FuncLogCallback logCallback);
+        AwsRegionMappings(const std::string& baseTemplatesFolder, FuncLogCallback logCallback);
         ~AwsRegionMappings();
         
         std::string GetRegionMappingsFilePath() const;
@@ -40,7 +40,7 @@ namespace GameKit
         AwsRegionMappings(const AwsRegionMappings&) = delete;
         const AwsRegionMappings& operator=(const AwsRegionMappings&) = delete;
 
-        static AwsRegionMappings& getInstance(const std::string& pluginRootPath, FuncLogCallback logCallback);
+        static AwsRegionMappings& getInstance(const std::string& baseTemplatesFolder, FuncLogCallback logCallback);
 
         /**
         * @brief Get the 5-letter region code for AWS region.

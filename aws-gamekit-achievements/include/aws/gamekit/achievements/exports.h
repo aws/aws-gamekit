@@ -46,6 +46,7 @@ extern "C"
      * - GAMEKIT_ERROR_NO_ID_TOKEN: The player is not logged in. You must login the player through the Identity & Authentication feature (AwsGameKitIdentity) before calling this method.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
     */
     GAMEKIT_API unsigned int GameKitListAchievements(GAMEKIT_ACHIEVEMENTS_INSTANCE_HANDLE achievementsInstance, unsigned int pageSize, bool waitForAllPages, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback);
 
@@ -64,6 +65,7 @@ extern "C"
      * - GAMEKIT_ERROR_NO_ID_TOKEN: The player is not logged in. You must login the player through the Identity & Authentication feature (AwsGameKitIdentity) before calling this method.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
     */
     GAMEKIT_API unsigned int GameKitUpdateAchievement(GAMEKIT_ACHIEVEMENTS_INSTANCE_HANDLE achievementsInstance, const char* achievementsId, unsigned int incrementBy, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback);
 
@@ -80,6 +82,7 @@ extern "C"
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
      * - GAMEKIT_ERROR_ACHIEVEMENTS_INVALID_ID: The Achievement ID given is empty or malformed.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
     */
     GAMEKIT_API unsigned int GameKitGetAchievement(GAMEKIT_ACHIEVEMENTS_INSTANCE_HANDLE achievementsInstance, const char* achievementId,
         const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback);

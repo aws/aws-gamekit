@@ -42,7 +42,8 @@ cmake -G "Visual Studio 16 2019" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=%buil
 -Dyaml-cpp_DIR=%GAMEKIT_YAMLCPP_PATH%\install\%build_type%\share\cmake\yaml-cpp -DGTEST_LINKED_AS_SHARED_LIBRARY=1 ^
 -DGTest_DIR=%GAMEKIT_GTEST_PATH%\build\install\lib\cmake\GTest -DGTEST_SRC=%GAMEKIT_GTEST_PATH%\build\install\include ^
 -Dpybind11_DIR=%GAMEKIT_PYBIND_PATH%\install\%build_type%\share\cmake\pybind11 -DCMAKE_INSTALL_PREFIX=%GAMEKIT_SOURCE_PATH%\install\%build_type% ^
---log-level=Verbose %GAMEKIT_SOURCE_PATH%
+--log-level=Verbose %GAMEKIT_SOURCE_PATH% ^
+-DCMAKE_CXX_FLAGS_DEBUG="-Zi -Ob0 -Od -RTC1" 
 @ECHO OFF
 goto end
 

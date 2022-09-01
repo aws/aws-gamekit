@@ -136,6 +136,8 @@ extern "C"
      * @param identityInstance A pointer to an Identity instance created with GameKitIdentityInstanceCreateWithSessionManager().
      * @return A GameKit status code indicating the result of the API call. Status codes are defined in errors.h. This method's possible status codes are listed below:
      * - GAMEKIT_SUCCESS: The API call was successful.
+     * - GAMEKIT_ERROR_LOGIN_FAILED: No user is logged in.
+     * - GAMEKIT_ERROR_LOGOUT_FAILED: An exception occurred while revoking the user's tokens. Please check the logs for details.
      */
     GAMEKIT_API unsigned int GameKitIdentityLogout(GAMEKIT_IDENTITY_INSTANCE_HANDLE identityInstance);
 
@@ -182,6 +184,7 @@ extern "C"
      * - GAMEKIT_ERROR_NO_ID_TOKEN: The player is not logged in.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the output logs to see what the HTTP response code was
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitIdentityGetUser(GAMEKIT_IDENTITY_INSTANCE_HANDLE identityInstance, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const GameKit::FuncIdentityGetUserResponseCallback responseCallback);
 
@@ -199,7 +202,9 @@ extern "C"
      * should be passed to GameKitPollAndRetrieveFederatedTokens(), second to return the login URL.
      * @return A GameKit status code indicating the result of the API call. Status codes are defined in errors.h. This method's possible status codes are listed below:
      * - GAMEKIT_SUCCESS: The API call was successful.
+     * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: Http request to get Federated login url failed.
      * - GAMEKIT_ERROR_INVALID_FEDERATED_IDENTITY_PROVIDER: The specified federated identity provider is invalid or is not yet supported.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitGetFederatedLoginUrl(GAMEKIT_IDENTITY_INSTANCE_HANDLE identityInstance, GameKit::FederatedIdentityProvider identityProvider, DISPATCH_RECEIVER_HANDLE dispatchReceiver, KeyValueCharPtrCallbackDispatcher responseCallback);
 
@@ -223,6 +228,7 @@ extern "C"
      * - GAMEKIT_ERROR_INVALID_FEDERATED_IDENTITY_PROVIDER: The specified federated identity provider is invalid or is not yet supported.
      * - GAMEKIT_ERROR_REQUEST_TIMED_OUT: PollForCompletion timed out waiting for login completion.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: Http request to get Federated Token failed.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitPollAndRetrieveFederatedTokens(GAMEKIT_IDENTITY_INSTANCE_HANDLE identityInstance, GameKit::FederatedIdentityProvider identityProvider, const char* requestId, int timeout);
 
@@ -239,6 +245,7 @@ extern "C"
      * @return A GameKit status code indicating the result of the API call. Status codes are defined in errors.h. This method's possible status codes are listed below:
      * - GAMEKIT_SUCCESS: The API call was successful.
      * - GAMEKIT_ERROR_INVALID_FEDERATED_IDENTITY_PROVIDER: The specified federated identity provider is invalid or is not yet supported.
+     * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called. Verify the feature is deployed and the config is correct.
      */
     GAMEKIT_API unsigned int GameKitGetFederatedIdToken(GAMEKIT_IDENTITY_INSTANCE_HANDLE identityInstance, GameKit::FederatedIdentityProvider identityProvider, DISPATCH_RECEIVER_HANDLE dispatchReceiver, CharPtrCallback responseCallback);
 

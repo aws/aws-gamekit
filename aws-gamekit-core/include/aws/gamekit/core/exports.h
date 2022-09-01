@@ -36,6 +36,16 @@ typedef void* GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE;
 typedef void* GAMEKIT_SETTINGS_INSTANCE_HANDLE;
 
 /**
+ * @brief GameKitFeaturesStatusManager instance handle acquired by calling #GameKitGameKitFeaturesStatusManagerInstanceGet()
+*/
+typedef void* GAMEKIT_FEATURES_STATUS_MANAGER_INSTANCE_HANDLE;
+
+/**
+ * @brief GameKitDeploymentOrchestrator instance handle acquired by calling #GameKitDeploymentOrchestratorCreate()
+*/
+typedef void* GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE;
+
+/**
  * @brief A pointer to an instance of a class that can receive a callback.
  *
  * @details The callback method signature is specified by each API which uses a DISPATCH_RECEIVER_HANDLE.
@@ -76,6 +86,40 @@ extern "C"
      * @param responseAwsSecret The value of the Aws secret key that the callback function receives.
      */
     typedef void(*FuncAwsProfileResponseCallback)(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const char* responseAwsAccessKey, const char* responseAwsSecret);
+
+    /**
+     * @brief A static callback function that will be invoked by the GameKitDeploymentOrchestrator upon completion of deployment related API calls (both for success or failure).
+     *
+     * @param dispatchReceiver The `receiver` pointer that was passed into the Deployment Orchestrator API.
+     * @param features An array of features for which we know the statuses of following execution of the API.
+     * @param featureStatuses The corresponding statuses for each feature in the `features` array.
+     * @param featureCount The number of items in `features` and `featureStatuses`
+     * @param callStatus A GameKit status code indicating the result of the API call. Status codes are defined in errors.h.
+     * See the specific API's documentation for a list of possible status codes the API may return.
+     */
+    typedef void(*DeploymentResponseCallback)(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const GameKit::FeatureType* features, const GameKit::FeatureStatus* featureStatuses, unsigned int featureCount, unsigned int callStatus);
+
+    /**
+     * @brief A static callback function that will be invoked by the GameKitDeploymentOrchestrator upon completion of deployment actions status related API calls.
+     *
+     * @param dispatchReceiver The `receiver` pointer that was passed into the Deployment Orchestrator API.
+     * @param targetFeature The target GameKit feature for the specified deployment action.
+     * @param canExecuteAction A boolean indicating whether the specified action can be executed.
+     * @param reason The reason why the specified action cannot be executed if `canExecuteAction` is false. `DeploymentActionBlockedReason::NotBlocked` otherwise.
+     * @param blockingFeatures The array of features which are blocking execution of the specified action.
+     * @param featureCount The number of items in `blockingFeatures`.
+     */
+    typedef void(*CanExecuteDeploymentActionCallback)(DISPATCH_RECEIVER_HANDLE dispatchReceiver, GameKit::FeatureType targetFeature, bool canExecuteAction, GameKit::DeploymentActionBlockedReason reason, const GameKit::FeatureType* blockingFeatures, unsigned int featureCount);
+
+    /**
+     * @brief A callback function that will be invoked by .
+     *
+     * @param dispatchReceiver A pointer to an instance of a class where the results will be dispatched to.
+     * @param logicalResourceId The AWS resource id associated with the resource.
+     * @param resourceType The type of AWS resource being created.
+     * @param resourceStatus The status of the resource being deployed.
+     */
+    typedef void(*DispatchedResourceInfoCallback)(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const char* logicalResourceId, const char* resourceType, const char* resourceStatus);
 }
 
 extern "C"
@@ -460,12 +504,16 @@ extern "C"
     GAMEKIT_API const char* GameKitResourcesGetInstanceFunctionsPath(GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE resourceInstance);
 
     /**
-     * @brief Creates an empty client configuration file.
+     * @brief Create an empty client configuration file in the current environment's instance files folder.
      *
-     * @details Use to bootstrap a GameKit config file as soon as an environment has been selected.
+     * @details Call this to bootstrap a GameKit config file as soon as an environment has been selected.
      *
      * @param resourceInstance Pointer to a GameKitFeatureResources instance created with GameKitResourcesInstanceCreate().
-     * @return The result code of the operation. GAMEKIT_SUCCESS if successful, else a non-zero value in case of error. Consult errors.h file for details.
+     * @return A GameKit status code indicating the result of the API call. Status codes are defined in errors.h. This method's possible status codes are listed below:
+     * - GAMEKIT_SUCCESS: The API call was successful. The empty config file was created.
+     * - GAMEKIT_ERROR_DIRECTORY_CREATE_FAILED: There was an error while creating missing directories in the filepath leading to the config file. Check the logs to see the root cause.
+     * - GAMEKIT_ERROR_FILE_OPEN_FAILED: There was an error while opening an output stream for the new or existing config file. Check the logs to see the root cause.
+     * - GAMEKIT_ERROR_FILE_WRITE_FAILED: There was an error while writing text to the config file.
      */
     GAMEKIT_API unsigned int GameKitResourcesCreateEmptyConfigFile(GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE resourceInstance);
 
@@ -478,6 +526,20 @@ extern "C"
      * @return The result code of the operation. GAMEKIT_SUCCESS if successful, else a non-zero value in case of error. Consult errors.h file for details.
      */
     GAMEKIT_API unsigned int GameKitResourcesInstanceCreateOrUpdateStack(GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE resourceInstance);
+
+    /**
+     * @brief Deploy this feature's CloudFormation stack to AWS and update its status.
+     *
+     * @details Deploys the instance CloudFormation template. Creates a new stack if no stack exists, or updates an existing stack. Update the deployment status at every step.
+     *
+     * @param resourceInstance Pointer to a GameKitFeatureResources instance created with GameKitResourcesInstanceCreate().
+     * @param targetFeature Value of the feature being deployed
+     * @param receiver A pointer to an instance of a class where the results will be dispatched to.
+     * This instance must have a method signature of void ReceiveResult(const char* charPtr);
+     * @param resultsCb A static dispatcher function pointer that receives a character array.
+     * @return The result code of the operation. GAMEKIT_SUCCESS if successful, else a non-zero value in case of error. Consult errors.h file for details.
+     */
+    GAMEKIT_API unsigned int GameKitResourcesInstanceConditionallyCreateOrUpdateStack(GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE resourceInstance, GameKit::FeatureType targetFeature, DISPATCH_RECEIVER_HANDLE receiver, CharPtrCallback resultsCb);
 
     /**
      * @brief Delete this feature's CloudFormation stack from AWS.
@@ -708,6 +770,19 @@ extern "C"
     GAMEKIT_API unsigned int GameKitSettingsSave(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance);
 
     /**
+     * @brief Set the Game's name, environment, and resion, then save settings
+     *
+     * @details Use this method to create the settings file directory, set the game's name, set the games environment, set the games region, and then persist the settings.
+     *
+     * @param settingsInstance Pointer to a GameKitSettings instance created with GameKitSettingsInstanceCreate().
+     * @param gameName The game's correctly formatted name.
+     * @param envCode The 3-letter environment code to get the description for.
+     * @param region The AWS deployment region.
+     * @return The result code of the operation. GAMEKIT_SUCCESS if successful, else a non-zero value in case of error. Consult errors.h file for details.
+     */
+    GAMEKIT_API unsigned int GameKitSettingsPopulateAndSave(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* gameName, const char* envCode, const char* region);
+
+    /**
      * @brief Get the game's full name, example: "My Full Game Name".
      *
      * @details The game name is returned through the callback and receiver.
@@ -838,48 +913,268 @@ extern "C"
      *
      * @details If the profile already exists, will update the access key and secret key to match those passed in through this method.
      *
-     * @param settingsInstance Pointer to a GameKitSettings instance created with GameKitSettingsInstanceCreate().
      * @param profileName The name of the profile we are saving or updating in the credentials ini file.
      * @param accessKey The access key of the Aws IAM role we are saving.
      * @param secretKey The secret key of the Aws IAM role we are saving.
      * @param logCb Callback function for logging information and errors.
      */
-    GAMEKIT_API unsigned int GameKitSaveAwsCredentials(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, const char* accessKey, const char* secretKey, FuncLogCallback logCb);
+    GAMEKIT_API unsigned int GameKitSaveAwsCredentials(const char* profileName, const char* accessKey, const char* secretKey, FuncLogCallback logCb);
+
+    /**
+     * @brief Checks if the Aws profile exists.
+     *
+     * @details Used to check for profile existence without getting credentials, used for quick checks to determine if credentials should be retrieved without verbose logging.
+     *
+     * @param profileName The name of the profile we are checking for existence in the credentials ini file.
+     */
+    GAMEKIT_API bool GameKitAwsProfileExists(const char* profileName);
 
     /**
      * @brief Sets the Aws access key of an existing profile.
      *
      * @details If the profile passed in does not exist, will not automatically create the profile and will return an error.
      *
-     * @param settingsInstance Pointer to a GameKitSettings instance created with GameKitSettingsInstanceCreate().
      * @param profileName The name of the profile we are updating in the credentials ini file.
      * @param newAccessKey The new access key that will be assigned to this profile.
      * @param logCb Callback function for logging information and errors.
      */
-    GAMEKIT_API unsigned int GameKitSetAwsAccessKey(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, const char* newAccessKey, FuncLogCallback logCb);
+    GAMEKIT_API unsigned int GameKitSetAwsAccessKey(const char* profileName, const char* newAccessKey, FuncLogCallback logCb);
 
     /**
      * @brief Sets the Aws secret key of an existing profile.
      *
      * @details If the profile passed in does not exist, will not automatically create the profile and will return an error.
      *
-     * @param settingsInstance Pointer to a GameKitSettings instance created with GameKitSettingsInstanceCreate().'
      * @param profileName The name of the profile we are saving our updating in the credentials ini file.
      * @param newSecretKey The new secret key that will be assigned to this profile.
      * @param logCb Callback function for logging information and errors.
      */
-    GAMEKIT_API unsigned int GameKitSetAwsSecretKey(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, const char* newSecretKey, FuncLogCallback logCb);
-
+    GAMEKIT_API unsigned int GameKitSetAwsSecretKey(const char* profileName, const char* newSecretKey, FuncLogCallback logCb);
 
     /**
      * @brief Gets the access key and secret key corresponding to a pre-existing profile in the Aws credentials file.
      *
-     * @param settingsInstance Pointer to a GameKitSettings instance created with GameKitSettingsInstanceCreate().'
      * @param profileName The name of the profile we are getting the access key and secret from.
      * @param receiver A pointer to an instance of a class where the results will be dispatched to.
      * @param responseCallback A static dispatcher function pointer that receives two char* values corresponding to the access and secret key.
      * @param logCb Callback function for logging information and errors.
      */
-    GAMEKIT_API unsigned int GameKitGetAwsProfile(GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance, const char* profileName, DISPATCH_RECEIVER_HANDLE receiver, FuncAwsProfileResponseCallback responseCallback, FuncLogCallback logCb);
+    GAMEKIT_API unsigned int GameKitGetAwsProfile(const char* profileName, DISPATCH_RECEIVER_HANDLE receiver, FuncAwsProfileResponseCallback responseCallback, FuncLogCallback logCb);
+#pragma endregion
+
+#pragma region GameKitDeploymentOrchestrator
+
+    /**
+     * @brief Create a GameKitDeploymentOrchestrator instance.
+     *
+     * @details Make sure to call GameKitDeploymentOrchestratorInstanceRelease() to destroy the returned object when finished with it.
+     *
+     * @param baseTemplatesFolder The folder where the "base" templates are stored. The base templates are the cloud formation templates, lambda functions, etc. which are copied to make the instance files (see next parameter).
+     * @param instanceFilesFolder The folder where the "instance" files and settings are going to be stored. The instance files are copied from the base templates, and are intended to be modified by the user.
+     * @param logCb Callback function for logging information and errors.
+     * @return Pointer to the new GameKitDeploymentOrchestrator instance.
+     */
+    GAMEKIT_API GAMEKIT_SETTINGS_INSTANCE_HANDLE GameKitDeploymentOrchestratorCreate(const char* baseTemplatesFolder, const char* instanceFilesFolder, const char* sourceEngine, const char* pluginVersion, FuncLogCallback logCb);
+
+    /**
+     * @brief Destroy the provided GameKitDeploymentOrchestrator instance.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     */
+    GAMEKIT_API void GameKitDeploymentOrchestratorInstanceRelease(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance);
+
+    /**
+     * @brief Set account credentials.
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param accountInfo Struct holding account id, game name, and deployment environment.
+     * @param accountCredentials Struct holding account id, region, access key, and secret key.
+     * @return The result code of the operation.
+     * - GAMEKIT_SUCCESS: The API call was successful.
+     * - GAMEKIT_ERROR_ORCHESTRATION_DEPLOYMENT_IN_PROGRESS: Cannot change credentials while a deployment is in progress.
+     * - GAMEKIT_ERROR_REGION_CODE_CONVERSION_FAILED: Could not retrieve the short region code from the mappings file. See the log for details on how to fix this.
+     */
+    GAMEKIT_API unsigned int GameKitDeploymentOrchestratorSetCredentials(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::AccountInfo accountInfo, GameKit::AccountCredentials accountCredentials);
+
+    /**
+     * @brief Get the status of a requested feature.
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @return FeatureStatus enum related to the status of the requested feature.
+     */
+    GAMEKIT_API GameKit::FeatureStatus GameKitDeploymentOrchestratorGetFeatureStatus(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature);
+
+    /**
+     * @brief Get an abridged status of a requested feature.
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @return FeatureStatusSummary enum related to the abridged status of the requested feature.
+     */
+    GAMEKIT_API GameKit::FeatureStatusSummary GameKitDeploymentOrchestratorGetFeatureStatusSummary(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature);
+
+    /**
+     * @brief Check if the requested feature is currently being created, redeployed, or deleted.
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @details Unlike GameKitDeploymentOrchestratorIsFeatureUpdating, this method returns true while the Main stack is being deployed (before the feature itself is created or redeployed).
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @return true if the requested feature is being created, redeployed, or deleted.
+     */
+    GAMEKIT_API bool GameKitDeploymentOrchestratorIsFeatureDeploymentInProgress(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature);
+
+    /**
+     * @brief Check if the requested feature is currently updating (i.e. it's FeatureStatus is not Deployed, Undeployed, Error, or RollbackComplete).
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @return true if the requested feature is updating.
+     */
+    GAMEKIT_API bool GameKitDeploymentOrchestratorIsFeatureUpdating(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature);
+
+    /**
+     * @brief Check if any GameKit feature is currently updating  (i.e. has a FeatureStatus other than Deployed, Undeployed, Error, or RollbackComplete).
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @return true if any feature is updating.
+     */
+    GAMEKIT_API bool GameKitDeploymentOrchestratorIsAnyFeatureUpdating(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance);
+
+    /**
+     * @brief Refresh the status of a requested feature
+     *
+     * @details This is a long running operation.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @param receiver This pointer will be passed to the resultCb function as the `dispatchReceiver`.
+     * @param resultCb A callback function passed an array of features and their statuses, as well as the status of the call once complete.
+     * @return The result code of the operation.
+     * - GAMEKIT_SUCCESS: The API call was successful.
+     */
+    GAMEKIT_API unsigned int GameKitDeploymentOrchestratorRefreshFeatureStatus(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb);
+
+    /**
+     * @brief Refresh the status of all features.
+     *
+     * @details This is a long running operation.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param receiver This pointer will be passed to the resultCb function as the `dispatchReceiver`.
+     * @param resultCb A callback function passed an array of features and their statuses, as well as the status of the call once complete.
+     * @return The result code of the operation.
+     * - GAMEKIT_SUCCESS: The API call was successful.
+     */
+    GAMEKIT_API unsigned int GameKitDeploymentOrchestratorRefreshFeatureStatuses(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb);
+
+    /**
+     * @brief Request if a feature is in a state to be created.
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @return true if the requested feature can be created.
+     */
+    GAMEKIT_API bool GameKitDeploymentOrchestratorCanCreateFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, CanExecuteDeploymentActionCallback resultCb);
+
+    /**
+     * @brief Request if a feature can be re-deployed.
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @return true if the requested feature can be re-deployed.
+     */
+    GAMEKIT_API bool GameKitDeploymentOrchestratorCanRedeployFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, CanExecuteDeploymentActionCallback resultCb);
+
+    /**
+     * @brief Request if a feature is in a state where it can be deleted.
+     *
+     * @details This is a fast method. It does not invoke any networked procedures.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @return true if the requested feature can be deleted.
+     */
+    GAMEKIT_API bool GameKitDeploymentOrchestratorCanDeleteFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, CanExecuteDeploymentActionCallback resultCb);
+
+    /**
+     * @brief Create a requested feature.
+     *
+     * @details This is a long running operation.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @param receiver This pointer will be passed to the resultCb function as the `dispatchReceiver`.
+     * @param resultCb A callback function passed an array of features and their statuses, as well as the status of the call once complete.
+     * @return The result code of the operation.
+     * - GAMEKIT_SUCCESS: The API call was successful.
+     * - GAMEKIT_ERROR_ORCHESTRATION_INVALID_FEATURE_STATE: Cannot create feature as it or one of its dependencies are in an invalid state for deployment.
+     */
+    GAMEKIT_API unsigned int GameKitDeploymentOrchestratorCreateFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb);
+
+    /**
+     * @brief Re-deploy a requested feature.
+     *
+     * @details This is a long running operation.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @param receiver This pointer will be passed to the resultCb function as the `dispatchReceiver`.
+     * @param resultCb A callback function passed an array of features and their statuses, as well as the status of the call once complete.
+     * @return The result code of the operation.
+     * - GAMEKIT_SUCCESS: The API call was successful.
+     * - GAMEKIT_ERROR_ORCHESTRATION_INVALID_FEATURE_STATE: Cannot redeploy feature as it or one of its dependencies are in an invalid state for deployment.
+     */
+    GAMEKIT_API unsigned int GameKitDeploymentOrchestratorRedeployFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb);
+
+    /**
+     * @brief Delete a requested feature.
+     *
+     * @details This is a long running operation.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @param receiver This pointer will be passed to the resultCb function as the `dispatchReceiver`.
+     * @param resultCb A callback function passed an array of features and their statuses, as well as the status of the call once complete.
+     * @return The result code of the operation.
+     * - GAMEKIT_SUCCESS: The API call was successful.
+     * - GAMEKIT_ERROR_CLOUDFORMATION_STACK_DELETE_FAILED: Failed to delete the stack, check output log for exact reason.
+     * - GAMEKIT_ERROR_ORCHESTRATION_INVALID_FEATURE_STATE: Cannot delete feature as it or one of its downstream dependencies are in an invalid state for deletion.
+     */
+    GAMEKIT_API unsigned int GameKitDeploymentOrchestratorDeleteFeature(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance, GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DeploymentResponseCallback resultCb);
+
+    /**
+     * @brief Gets the deployment status of each AWS resource within the specified feature.
+     *
+     * @details This is a long running operation.
+     *
+     * @param deploymentOrchestratorInstance Pointer to a GameKitDeploymentOrchestrator instance created with GameKitDeploymentOrchestratorCreate().
+     * @param feature The GameKit feature to work with.
+     * @param receiver This pointer will be passed to the resultCb function as the `dispatchReceiver`.
+     * @param resultCb A callback function that returns several strings specifying the resource id, resource type, and resource status.
+     * @return The result code of the operation.
+     * - GAMEKIT_SUCCESS: The API call was successful.
+     * - GAMEKIT_ERROR_CLOUDFORMATION_DESCRIBE_RESOURCE_FAILED if status of the resources could not be determined.
+     */
+    GAMEKIT_API unsigned int GameKitDeploymentOrchestratorDescribeFeatureResources(GAMEKIT_DEPLOYMENT_ORCHESTRATOR_INSTANCE_HANDLE deploymentOrchestratorInstance,
+        GameKit::FeatureType feature, DISPATCH_RECEIVER_HANDLE receiver, DispatchedResourceInfoCallback resourceInfoCb);
+
 #pragma endregion
 }

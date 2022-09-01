@@ -170,12 +170,10 @@ bool GameKit::Utils::HttpClient::TrySerializeRequestBinary(std::ostream& os, con
             }
 
             std::stringstream bodyStream = std::stringstream();
-            
-#if ENABLE_CURL_CLIENT
+
             // Rewind content body buffer before serializing
             request->GetContentBody()->clear();
             request->GetContentBody()->seekg(0);
-#endif
 
             bodyStream << request->GetContentBody()->rdbuf();
             std::string body = bodyStream.str();
@@ -360,35 +358,35 @@ unsigned int RequestResult::ToErrorCode() const
 #pragma endregion
 
 #pragma region ExponentialBackoffStrategy Public Methods
-ExponentialBackoffStrategy::ExponentialBackoffStrategy(unsigned int maxAttempts, FuncLogCallback logCb) : counter(0), currentStep(0), retryThreshold(0), maxAttempts(maxAttempts), logCb(logCb)
+ExponentialBackoffStrategy::ExponentialBackoffStrategy(unsigned int maxAttempts, FuncLogCallback logCb) : tickCounter(0), currentStep(0), retryThreshold(0), maxAttempts(maxAttempts), logCb(logCb)
 {}
 
 ExponentialBackoffStrategy::~ExponentialBackoffStrategy()
 {}
 
-void ExponentialBackoffStrategy::IncreaseCounter()
+void ExponentialBackoffStrategy::IncreaseThreshold()
 {
     currentStep++;
     retryThreshold = pow(2, currentStep);
     retryThreshold = (std::rand() % retryThreshold) + 1;
 
-    std::string message = "ExponentialBackoffStrategy step " + std::to_string(currentStep) + ", retry threshold " + std::to_string(retryThreshold);
+    std::string message = "ExponentialBackoffStrategy step " + std::to_string(currentStep) + ", next retry threshold " + std::to_string(retryThreshold);
     Logging::Log(logCb, Level::Verbose, message.c_str());
 }
 
 bool ExponentialBackoffStrategy::ShouldRetry()
 {
-    counter++;
+    tickCounter++;
 
-    std::string message = "ExponentialBackoffStrategy counter " + std::to_string(counter);
+    std::string message = "ExponentialBackoffStrategy tick counter " + std::to_string(tickCounter);
     Logging::Log(logCb, Level::Verbose, message.c_str());
 
-    return counter >= retryThreshold || counter >= maxAttempts;
+    return tickCounter >= retryThreshold || tickCounter >= maxAttempts;
 }
 
 void ExponentialBackoffStrategy::Reset()
 {
-    counter = 0;
+    tickCounter = 0;
     currentStep = 0;
     retryThreshold = 0;
 }

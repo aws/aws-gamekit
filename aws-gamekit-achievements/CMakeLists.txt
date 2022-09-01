@@ -85,4 +85,11 @@ if (GAMEKIT_ANDROID)
         $<TARGET_FILE:Boost::filesystem>
         $<TARGET_FILE:Boost::iostreams>
         TYPE BIN)
+
+    # For Android Shared Lib builds we need to copy the libc++_shared library as well when installing.
+    string(TOLOWER "${ANDROID_STL}" ANDROID_STL_LOWER)
+    if("${ANDROID_STL_LOWER}" STREQUAL "c++_shared")
+        cmake_path(APPEND CMAKE_ANDROID_NDK "sources/cxx-stl/llvm-libc++/libs/${ANDROID_ABI}/libc++_shared.so" OUTPUT_VARIABLE STL_SHARED_LIB)
+        INSTALL(FILES ${STL_SHARED_LIB} TYPE BIN)
+    endif()
 endif()

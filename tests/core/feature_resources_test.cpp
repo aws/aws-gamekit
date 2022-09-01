@@ -37,10 +37,28 @@ public:
             gamekitAccountInstance->GetAccountCredentials(),
             GameKit::FeatureType::Identity,
             TestLogger::Log);
+
+        s3Mock.release();
+        ssmMock.release();
+        cfnMock.release();
+
+        s3Mock = std::make_unique<GameKit::Mocks::MockS3Client>();
+        ssmMock = std::make_unique<GameKit::Mocks::MockSSMClient>();
+        cfnMock = std::make_unique<GameKit::Mocks::MockCloudFormationClient>();
+
+        cfnMock->DelegateToFake();
+
+        gamekitFeatureResourcesInstance->SetS3Client(s3Mock.get(), false);
+        gamekitFeatureResourcesInstance->SetSSMClient(ssmMock.get(), false);
+        gamekitFeatureResourcesInstance->SetCloudFormationClient(cfnMock.get(), false);
     }
 
     void TearDown()
     {
+        ASSERT_TRUE(Mock::VerifyAndClearExpectations(s3Mock.get()));
+        ASSERT_TRUE(Mock::VerifyAndClearExpectations(ssmMock.get()));
+        ASSERT_TRUE(Mock::VerifyAndClearExpectations(cfnMock.get()));
+
         gamekitAccountInstance.reset();
         gamekitFeatureResourcesInstance.reset();
 
@@ -111,20 +129,16 @@ TEST_F(GameKitFeatureResourcesTestFixture, WhenSetAwsClient_ThenClientPreservedI
 
 TEST_F(GameKitFeatureResourcesTestFixture, WhenNoNewValues_DoNotWriteClientConfiguration)
 {
+    gamekitFeatureResourcesInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     // arrange
-    const auto cfnMock = Aws::MakeUnique<GameKit::Mocks::MockCloudFormationClient>("cfnMock");
-    const auto cfnClientMock = cfnMock.get();
+    EXPECT_CALL(*cfnMock, DescribeStacks(_)).Times(1);
 
-    EXPECT_CALL(*cfnClientMock, DescribeStacks(_)).Times(1);
-
-    ON_CALL(*cfnClientMock, DescribeStacks).WillByDefault([this](const Aws::CloudFormation::Model::DescribeStacksRequest& request)
+    ON_CALL(*cfnMock, DescribeStacks).WillByDefault([this](const Aws::CloudFormation::Model::DescribeStacksRequest& request)
     {
         return GameKit::Mocks::FakeCloudFormationClient().DescribeStacks(request);
     });
 
     // act
-    gamekitFeatureResourcesInstance->SetCloudFormationClient(cfnClientMock, true);
-
     const unsigned result = gamekitFeatureResourcesInstance->WriteClientConfiguration();
 
     // assert
@@ -134,22 +148,17 @@ TEST_F(GameKitFeatureResourcesTestFixture, WhenNoNewValues_DoNotWriteClientConfi
 
 TEST_F(GameKitFeatureResourcesTestFixture, CanGetExistingParameters)
 {
-    gamekitFeatureResourcesInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     gamekitFeatureResourcesInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    gamekitFeatureResourcesInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     // arrange
-    const auto cfnMock = Aws::MakeUnique<GameKit::Mocks::MockCloudFormationClient>("cfnMock");
-    const auto cfnClientMock = cfnMock.get();
+    EXPECT_CALL(*cfnMock, DescribeStacks(_)).Times(1);
 
-    EXPECT_CALL(*cfnClientMock, DescribeStacks(_)).Times(1);
-
-    ON_CALL(*cfnClientMock, DescribeStacks).WillByDefault([this](const Aws::CloudFormation::Model::DescribeStacksRequest& request)
+    ON_CALL(*cfnMock, DescribeStacks).WillByDefault([this](const Aws::CloudFormation::Model::DescribeStacksRequest& request)
         {
             return GameKit::Mocks::FakeCloudFormationClient().DescribeStacks(request);
         });
 
     // act
-    gamekitFeatureResourcesInstance->SetCloudFormationClient(cfnClientMock, true);
-
     const DeployedParametersCallback callback = [](const char* key, const char* value)
     {
         ASSERT_NE(std::string(key).length(), 0);
@@ -162,4 +171,50 @@ TEST_F(GameKitFeatureResourcesTestFixture, CanGetExistingParameters)
     // assert
     ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, status);
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(cfnMock.get()));
+}
+
+TEST_F(GameKitFeatureResourcesTestFixture, UpdateDashboardStatusListsStacks)
+{
+    gamekitFeatureResourcesInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    gamekitFeatureResourcesInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
+
+    // arrange
+    EXPECT_CALL(*cfnMock, ListStacks(_)).Times(1);
+    std::unordered_set<FeatureType> features;
+    features.insert(FeatureType::Identity);
+
+    // act
+    gamekitFeatureResourcesInstance->UpdateDashboardDeployStatus(features);
+
+    // assert
+    ASSERT_TRUE(Mock::VerifyAndClearExpectations(cfnMock.get()));
+}
+
+TEST_F(GameKitFeatureResourcesTestFixture, DeployFeatureFunctions_Success)
+{
+    // arrange
+    gamekitFeatureResourcesInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    gamekitFeatureResourcesInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
+
+    SSMModel::PutParameterResult putParamResult;
+    putParamResult.SetVersion(1);
+    auto putParamOutcome = SSMModel::PutParameterOutcome(putParamResult);
+    EXPECT_CALL(*ssmMock.get(), PutParameter(_))
+        .Times(AtLeast(1))
+        .WillOnce(Return(putParamOutcome));
+
+    S3Model::PutObjectResult putObjResult;
+    putObjResult.SetETag("abc-123");
+    auto putObjOutcome = S3Model::PutObjectOutcome(putObjResult);
+    EXPECT_CALL(*s3Mock.get(), PutObject(_))
+        .Times(AtLeast(1))
+        .WillRepeatedly(Return(putObjOutcome));
+
+    // act
+    auto result = gamekitFeatureResourcesInstance->DeployFeatureFunctions();
+
+    // assert
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_TRUE(Mock::VerifyAndClearExpectations(ssmMock.get()));
+    ASSERT_TRUE(Mock::VerifyAndClearExpectations(s3Mock.get()));
 }

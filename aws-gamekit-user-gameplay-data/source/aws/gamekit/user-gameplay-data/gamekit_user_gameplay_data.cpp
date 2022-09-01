@@ -68,7 +68,7 @@ unsigned int UserGameplayData::AddUserGameplayData(UserGameplayDataBundle userGa
 {
     if (!m_sessionManager->AreSettingsLoaded(FeatureType::UserGameplayData))
     {
-        return GAMEKIT_ERROR_SETTINGS_FILE_READ_FAILED;
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
     }
 
     if (!Utils::ValidationUtils::IsValidPrimaryIdentifier(userGameplayDataBundle.bundleName))
@@ -157,7 +157,7 @@ unsigned int UserGameplayData::ListUserGameplayDataBundles(DISPATCH_RECEIVER_HAN
 {
     if (!m_sessionManager->AreSettingsLoaded(FeatureType::UserGameplayData))
     {
-        return GAMEKIT_ERROR_SETTINGS_FILE_READ_FAILED;
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
     }
 
     const std::string uri = m_sessionManager->GetClientSettings()[SETTINGS_USER_GAMEPLAY_DATA_API_GATEWAY_BASE_URL] + LIST_BUNDLES_PATH;
@@ -249,7 +249,7 @@ unsigned int UserGameplayData::GetUserGameplayDataBundle(char* bundleName, DISPA
 {
     if (!m_sessionManager->AreSettingsLoaded(FeatureType::UserGameplayData))
     {
-        return GAMEKIT_ERROR_SETTINGS_FILE_READ_FAILED;
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
     }
 
     if (!Utils::ValidationUtils::IsValidPrimaryIdentifier(bundleName))
@@ -344,7 +344,7 @@ unsigned int UserGameplayData::GetUserGameplayDataBundleItem(UserGameplayDataBun
 {
     if (!m_sessionManager->AreSettingsLoaded(FeatureType::UserGameplayData))
     {
-        return GAMEKIT_ERROR_SETTINGS_FILE_READ_FAILED;
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
     }
 
     if (!Utils::ValidationUtils::IsValidPrimaryIdentifier(userGameplayDataBundleItem.bundleName))
@@ -410,7 +410,7 @@ unsigned int UserGameplayData::UpdateUserGameplayDataBundleItem(UserGameplayData
 {
     if (!m_sessionManager->AreSettingsLoaded(FeatureType::UserGameplayData))
     {
-        return GAMEKIT_ERROR_SETTINGS_FILE_READ_FAILED;
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
     }
 
     if (!Utils::ValidationUtils::IsValidPrimaryIdentifier(userGameplayDataBundleItemValue.bundleName))
@@ -468,7 +468,7 @@ unsigned int UserGameplayData::DeleteAllUserGameplayData()
 {
     if (!m_sessionManager->AreSettingsLoaded(FeatureType::UserGameplayData))
     {
-        return GAMEKIT_ERROR_SETTINGS_FILE_READ_FAILED;
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
     }
 
     const std::string uri = m_sessionManager->GetClientSettings()[SETTINGS_USER_GAMEPLAY_DATA_API_GATEWAY_BASE_URL];
@@ -499,7 +499,7 @@ unsigned int UserGameplayData::DeleteUserGameplayDataBundle(char* bundleName)
 {
     if (!m_sessionManager->AreSettingsLoaded(FeatureType::UserGameplayData))
     {
-        return GAMEKIT_ERROR_SETTINGS_FILE_READ_FAILED;
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
     }
 
     if (!Utils::ValidationUtils::IsValidPrimaryIdentifier(bundleName))
@@ -538,7 +538,7 @@ unsigned int UserGameplayData::DeleteUserGameplayDataBundleItems(UserGameplayDat
 {
     if (!m_sessionManager->AreSettingsLoaded(FeatureType::UserGameplayData))
     {
-        return GAMEKIT_ERROR_SETTINGS_FILE_READ_FAILED;
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
     }
 
     if (!Utils::ValidationUtils::IsValidPrimaryIdentifier(deleteItemsRequest.bundleName))

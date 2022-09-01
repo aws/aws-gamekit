@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <regex>
+#include <unordered_set>
 
 // AWS SDK
 #include <aws/core/utils/base64/Base64.h>
@@ -17,6 +18,7 @@
 #include <aws/cloudformation/model/DescribeStackResourcesRequest.h>
 #include <aws/cloudformation/model/DescribeStacksRequest.h>
 #include <aws/cloudformation/model/GetTemplateRequest.h>
+#include <aws/cloudformation/model/ListStacksRequest.h>
 #include <aws/cloudformation/model/StackStatus.h>
 #include <aws/cloudformation/model/UpdateStackRequest.h>
 #include <aws/lambda/LambdaClient.h>
@@ -29,9 +31,11 @@
 #include <aws/ssm/model/PutParameterRequest.h>
 
 // GameKit
+#include <aws/gamekit/core/aws_region_mappings.h>
 #include <aws/gamekit/core/awsclients/api_initializer.h>
 #include <aws/gamekit/core/awsclients/default_clients.h>
 #include <aws/gamekit/core/enums.h>
+#include <aws/gamekit/core/exports.h>
 #include <aws/gamekit/core/feature_resources_callback.h>
 #include <aws/gamekit/core/gamekit_feature.h>
 #include <aws/gamekit/core/model/account_credentials.h>
@@ -39,9 +43,8 @@
 #include <aws/gamekit/core/model/config_consts.h>
 #include <aws/gamekit/core/model/template_consts.h>
 #include <aws/gamekit/core/paramstore_keys.h>
-#include <aws/gamekit/core/zipper.h>
 #include <aws/gamekit/core/utils/file_utils.h>
-#include <aws/gamekit/core/aws_region_mappings.h>
+#include <aws/gamekit/core/zipper.h>
 
 // yaml-cpp
 #include <yaml-cpp/yaml.h>
@@ -119,10 +122,13 @@ namespace GameKit
         unsigned int createAndSetLambdaLayerArn(const std::string& layerName, const std::string& layerArn) const;
         std::string getShortRegionCode();
 
+        std::string getStackName(FeatureType featureType) const;
+        unsigned int internalDescribeFeatureResources(FuncResourceInfoCallback resourceInfoCb = nullptr, DISPATCH_RECEIVER_HANDLE receiver = nullptr, DispatchedResourceInfoCallback = nullptr) const;
+
     public:
         GameKitFeatureResources(const AccountInfo accountInfo, const AccountCredentials credentials, FeatureType featureType, FuncLogCallback logCb);
         GameKitFeatureResources(const AccountInfoCopy& accountInfo, const AccountCredentialsCopy& credentials, FeatureType featureType, FuncLogCallback logCb);
-        ~GameKitFeatureResources();
+        virtual ~GameKitFeatureResources();
 
         // Clients initialized with his method will be deleted in the class destructor.
         void InitializeDefaultAwsClients();
@@ -158,10 +164,11 @@ namespace GameKit
         // The value GAMEKIT_ROOT where instance templates and settings are going to be stored
         inline void SetGameKitRoot(const std::string& gamekitRoot)
         {
+            const std::string shortRegionCode = getShortRegionCode();
             m_gamekitRoot = gamekitRoot;
-            m_instanceLayersPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + ResourceDirectories::LAYERS_DIRECTORY + GetFeatureTypeString(m_featureType) + "/";
-            m_instanceFunctionsPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + ResourceDirectories::FUNCTIONS_DIRECTORY + GetFeatureTypeString(m_featureType) + "/";
-            m_instanceCloudformationPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + ResourceDirectories::CLOUDFORMATION_DIRECTORY + GetFeatureTypeString(m_featureType) + "/";
+            m_instanceLayersPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + "/" + shortRegionCode + ResourceDirectories::LAYERS_DIRECTORY + GetFeatureTypeString(m_featureType) + "/";
+            m_instanceFunctionsPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + "/" + shortRegionCode + ResourceDirectories::FUNCTIONS_DIRECTORY + GetFeatureTypeString(m_featureType) + "/";
+            m_instanceCloudformationPath = gamekitRoot + "/" + m_accountInfo.gameName + "/" + m_accountInfo.environment.GetEnvironmentString() + "/" + shortRegionCode + ResourceDirectories::CLOUDFORMATION_DIRECTORY + GetFeatureTypeString(m_featureType) + "/";
         }
 
         // Returns the GAMEKIT_ROOT where instance templates and settings are stored
@@ -230,33 +237,6 @@ namespace GameKit
             return m_instanceCloudformationPath;
         }
 
-        bool IsCloudFormationInstanceTemplatePresent() const;
-
-        unsigned int SaveDeployedCloudFormationTemplate() const;
-        unsigned int GetDeployedCloudFormationParameters(DeployedParametersCallback callback) const;
-        unsigned int SaveCloudFormationInstance();
-        unsigned int UpdateCloudFormationParameters();
-        unsigned int SaveLayerInstances() const;
-        unsigned int SaveFunctionInstances() const;
-
-        std::string GetStackName() const;
-        void SetLayersReplacementId(const std::string& replacementId);
-        void SetFunctionsReplacementId(const std::string& replacementId);
-        unsigned int CreateAndSetLayersReplacementId();
-        unsigned int CreateAndSetFunctionsReplacementId();
-        unsigned int UploadDashboard(const std::string& path);
-        unsigned int CompressFeatureLayers();
-        unsigned int UploadFeatureLayers();
-        unsigned int CompressFeatureFunctions();
-        unsigned int UploadFeatureFunctions();
-        void CleanupTempFiles();
-        std::string GetCurrentStackStatus() const;
-        unsigned int DescribeStackResources(FuncResourceInfoCallback resourceInfoCb) const;
-        unsigned int CreateOrUpdateFeatureStack();
-        unsigned int WriteEmptyClientConfiguration() const;
-        unsigned int WriteClientConfiguration() const;
-        unsigned int DeleteFeatureStack();
-
         inline std::string GetLambdaFunctionReplacementIDParamName() const
         {
             return std::string(GAMEKIT_LAMBDA_FUNCTIONS_REPLACEMENT_ID_PREFIX)
@@ -324,5 +304,43 @@ namespace GameKit
             m_isUsingSharedLambdaClient = isShared;
             m_lambdaClient = lambdaClient;
         }
+
+        std::string GetStackName() const;
+        void SetLayersReplacementId(const std::string& replacementId);
+        void SetFunctionsReplacementId(const std::string& replacementId);
+        unsigned int ConditionallyCreateOrUpdateFeatureResources(FeatureType targetFeature, const DISPATCH_RECEIVER_HANDLE dispatchReceiver, const CharPtrCallback responseCallback);
+        unsigned int CreateAndSetLayersReplacementId();
+        unsigned int CreateAndSetFunctionsReplacementId();
+        unsigned int CompressFeatureLayers();
+        unsigned int CompressFeatureFunctions();
+        void CleanupTempFiles();
+        unsigned int DescribeStackResources(FuncResourceInfoCallback resourceInfoCb) const;
+        unsigned int DescribeStackResources(const DISPATCH_RECEIVER_HANDLE receiver, DispatchedResourceInfoCallback resourceInfoCb) const;
+        unsigned int WriteEmptyClientConfiguration() const;
+        unsigned int WriteClientConfiguration() const;
+
+        virtual bool IsCloudFormationInstanceTemplatePresent() const;
+        virtual bool AreLayerInstancesPresent() const;
+        virtual bool AreFunctionInstancesPresent() const;
+
+        virtual unsigned int SaveDeployedCloudFormationTemplate() const;
+        virtual unsigned int GetDeployedCloudFormationParameters(DeployedParametersCallback callback) const;
+        virtual unsigned int SaveCloudFormationInstance();
+        virtual unsigned int SaveCloudFormationInstance(std::string sourceEngine, std::string pluginVersion);
+        virtual unsigned int UpdateCloudFormationParameters();
+        virtual unsigned int SaveLayerInstances() const;
+        virtual unsigned int SaveFunctionInstances() const;
+
+        virtual unsigned int UploadDashboard(const std::string& path);
+        virtual unsigned int UploadFeatureLayers();
+        virtual unsigned int UploadFeatureFunctions();
+
+        virtual unsigned int DeployFeatureLayers();
+        virtual unsigned int DeployFeatureFunctions();
+        
+        virtual std::string GetCurrentStackStatus() const;
+        virtual void UpdateDashboardDeployStatus(std::unordered_set<FeatureType> features) const;
+        virtual unsigned int CreateOrUpdateFeatureStack();
+        virtual unsigned int DeleteFeatureStack();
     };
 }

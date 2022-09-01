@@ -11,12 +11,16 @@ import sys
 import common
 
 import Android.refresh_unreal as android_unreal
+import Android.refresh_unity as android_unity
 import Win64.refresh_unreal as windows_unreal
 import Win64.refresh_unity as windows_unity 
 import Mac.refresh_unreal as mac_unreal
+import Mac.refresh_unity as mac_unity
 import IOS.refresh_unreal as ios_unreal
+import IOS.refresh_unity as ios_unity
 
 from aws_gamekit_cpp_build import build_libs
+from common import REPOSITORY_ROOT
 
 def copy_unreal_headers(plugin_path, generate_error_codes=True):
     plugin_path = pathlib.Path(plugin_path)
@@ -69,13 +73,17 @@ if __name__ == "__main__":
     unreal_parser.add_argument("--unreal_plugin_path", required=True, help="Path to AWS GameKit Plugin for Unreal e.g. [unreal_project_path]/Plugins/AwsGameKit")
 
     unity_parser = engine_subparser.add_parser("Unity")
-    unity_parser.add_argument("--unity_plugin_path", required=True, help="Path to AWS GameKit Plugin for Unity Unity e.g. [unity_package]/Assets/AWS GameKit")
+    unity_parser.add_argument("--unity_plugin_path", required=True, help="Path to AWS GameKit Plugin for Unity Unity e.g. [unity_repo]/Packages/com.amazonaws.gamekit")
 
     args = parser.parse_args()
 
     if args.build:
-        # Will need to be altered if build tools installed in non-standard locations
-        common.run_and_log(["python", "aws_gamekit_cpp_build.py", args.platform, args.type])
+        build_script_path = pathlib.Path(REPOSITORY_ROOT, "scripts", "aws_gamekit_cpp_build.py")
+        if "Android" == args.platform and "Unity" == args.engine:
+            common.run_and_log(["python", build_script_path, args.platform, "--shared", args.type])
+        else:
+            # Will need to be altered if build tools installed in non-standard locations
+            common.run_and_log(["python", build_script_path, args.platform, args.type])
 
     if args.engine == "Unreal":
         if not pathlib.Path(args.unreal_plugin_path).exists():
@@ -96,11 +104,8 @@ if __name__ == "__main__":
         if "Windows" == args.platform:
             windows_unity.refresh(args.type, args.unity_plugin_path)
         if "Android" == args.platform:
-            # TODO
-            pass
+            android_unity.refresh(args.type, args.unity_plugin_path)
         if "Mac" == args.platform:
-            # TODO
-            pass
+            mac_unity.refresh(args.type, args.unity_plugin_path, args.certificate_name)
         if "iOS" == args.platform:
-            # TODO
-            pass
+            ios_unity.refresh(args.type, args.unity_plugin_path, args.certificate_name)

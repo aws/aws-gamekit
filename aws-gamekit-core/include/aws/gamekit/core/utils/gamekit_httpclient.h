@@ -25,7 +25,7 @@
 #include <aws/gamekit/core/awsclients/default_clients.h>
 #include <aws/gamekit/core/utils/gamekit_httpclient_types.h>
 #include <aws/gamekit/core/utils/gamekit_httpclient_callbacks.h>
-#include <aws/gamekit/core/utils/ticker.h>
+#include <aws/gamekit/core/utils/count_ticker.h>
 
 using namespace GameKit::Logger;
 
@@ -46,7 +46,7 @@ namespace GameKit
                 size_t m_maxPendingQueueSize;
                 unsigned int m_attempsCount;
                 unsigned int m_secondsInterval;
-                GameKit::Utils::Ticker m_requestPump;
+                GameKit::Utils::CountTicker m_requestPump;
                 bool m_abortProcessingRequested;
                 std::shared_ptr<Aws::Http::HttpClient> m_httpClient;
                 std::shared_ptr<IRetryStrategy> m_retryStrategy;

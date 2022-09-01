@@ -23,7 +23,7 @@ def refresh(type, plugin_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Copies library files over to the target plugin.")
     parser.add_argument("type", choices=["Debug", "Release"], help="Compile type for libs being copied over.")
-    parser.add_argument("--unity_plugin_path", required=True, help="Path to AWs GameKit Plugin for Unity e.g. [unity_package]/Assets/AWS GameKit")
+    parser.add_argument("--unity_plugin_path", required=True, help="Path to AWs GameKit Plugin for Unity e.g. [unity_package]/Packages/com.amazonaws.gamekit")
     args = parser.parse_args()
 
     refresh(args.type, args.unity_plugin_path)

@@ -16,20 +16,43 @@ Ticker::Ticker(int interval, std::function<void()> tickFunc, FuncLogCallback log
     m_isRunning = false;
     m_aborted = false;
     m_isCompleted = false;
+    m_wasOnDestroyCalled = false;
 }
 
 Ticker::~Ticker()
+{
+    // Derived classes must call OnDestroy() in their destructors.
+    if (!m_wasOnDestroyCalled)
+    {
+        Logging::Log(m_logCb, Level::Error, "Ticker::~Ticker(): OnDestroy() was never called. It must be called in the destructor of Ticker derived types.", this);
+    }
+}
+
+void GameKit::Utils::Ticker::OnDestroy()
 {
     if (m_isRunning)
     {
         this->Stop();
     }
+
+    m_logCb = nullptr;
+    m_wasOnDestroyCalled = true;
 }
 #pragma endregion
 
 #pragma region Public Methods
 void Ticker::Start()
 {
+    // Exit early if the ticker is already running
+    {
+        std::lock_guard<std::mutex> lock(m_tickerMutex);
+        if (m_isRunning)
+        {
+            Logging::Log(m_logCb, Level::Warning, "Ticker::Start(): This ticker is already running. It can only support one background thread at a time. Skipped starting a new thread.", this);
+            return;
+        }
+    }
+
     std::stringstream buffer;
     buffer << "Ticker::Start(): Interval: " << m_interval;
     Logging::Log(m_logCb, Level::Info, buffer.str().c_str(), this);
@@ -38,22 +61,23 @@ void Ticker::Start()
     m_funcThread = std::thread([&]()
     {
         std::chrono::milliseconds pulse{ TICKER_PULSE };
-        long long currentInterval = m_interval * 1000ll;
+        startNewInterval(m_interval);
+
         while (m_isRunning && !m_aborted)
         {
-            // Wake the ticker every TICKER_PULSE and count down currentInterval
+            // Wake the ticker every TICKER_PULSE and count down the current interval
             std::this_thread::sleep_for(pulse);
-            currentInterval -= pulse.count();
+            countDownInterval(pulse);
 
-            // If currentInterval reaches 0, execute tickFunc
-            if (currentInterval <= 0)
+            if (isIntervalOver())
             {
+                // execute the tickFunc
                 m_threadId = std::this_thread::get_id();
                 m_tickFunc();
                 m_threadId = std::thread::id();
 
-                // reset currentInterval
-                currentInterval = m_interval * 1000ll;
+                // set the next intervalEndTime
+                startNewInterval(m_interval);
             }
         }
         Logging::Log(m_logCb, Level::Info, "Ticker::Stop(): Ticker loop exited.", this);
@@ -88,7 +112,6 @@ void Ticker::Stop()
     // reset the flag in case the Ticker is restarted
     m_isCompleted = false;
     Logging::Log(m_logCb, Level::Info, "Ticker::Stop(): Stopped.", this);
-    m_logCb = nullptr;
 }
 
 bool Ticker::IsRunning() const

@@ -24,10 +24,10 @@ if ("${TARGET_ARCH_LOWER}" STREQUAL "android")
     list(APPEND CMAKE_FIND_ROOT_PATH "${BOOST_ROOT}")
     list(APPEND CMAKE_PREFIX_PATH "${CURL_LIB_DIR}")
     list(APPEND CMAKE_PREFIX_PATH "${OPENSSL_ROOT_DIR}")
-
-    message(WARNING "Disabling GameKit pybind integration for Android")
-    set(ENABLE_GAMEKIT_PYBIND False)
     set(GAMEKIT_ANDROID True)
+
+    # Boost
+    find_package(Boost 1.76.0 COMPONENTS filesystem iostreams regex)
 
     # Curl and SSL libraries are auto included by AWS SDK, we want to set them explicitly from the
     # command line
@@ -43,9 +43,11 @@ if ("${TARGET_ARCH_LOWER}" STREQUAL "android")
     else()
         set_target_properties(CURL::libcurl PROPERTIES IMPORTED_LOCATION_DEBUG "${CURL_LIBRARY}")
     endif()
-else()
-    set(ENABLE_GAMEKIT_PYBIND True)
 
+    # Help the linker to find libcrypto/crypto library
+    cmake_path(APPEND OPENSSL_ROOT_DIR "lib" OUTPUT_VARIABLE OPENSSL_LIBS_DIR)
+    link_directories(${OPENSSL_LIBS_DIR})
+else()
     set(GAMEKIT_ANDROID False)
     set(ANDROID_CURL_SSL_LIBS "")
 endif()
@@ -55,12 +57,19 @@ find_package(AWSSDK REQUIRED COMPONENTS apigateway cloudformation cognito-idp la
 
 find_package(yaml-cpp)
 
-add_subdirectory(aws_gamekit_py)
+if (DEFINED pybind11_DIR)
+    add_subdirectory(aws_gamekit_py)
+endif()
+
 add_subdirectory(aws-gamekit-core)
 add_subdirectory(aws-gamekit-identity)
 add_subdirectory(aws-gamekit-achievements)
 add_subdirectory(aws-gamekit-authentication)
 add_subdirectory(aws-gamekit-user-gameplay-data)
 add_subdirectory(aws-gamekit-game-saving)
-add_subdirectory(tests)
+
+if (DEFINED GTEST_SRC)
+    add_subdirectory(tests)
+endif()
+
 add_subdirectory(publish)

@@ -28,6 +28,17 @@ GameKitAccount::GameKitAccount(const AccountInfo& accountInfo, const AccountCred
     Logging::Log(m_logCb, Level::Info, "GameKitAccount instantiated");
 }
 
+GameKitAccount::GameKitAccount(const AccountInfoCopy& accountInfo, const AccountCredentialsCopy& credentials, FuncLogCallback logCallback)
+{
+    m_accountInfo = accountInfo;
+    m_credentials = credentials;
+    m_credentials.accountId = accountInfo.accountId;
+    m_logCb = logCallback;
+
+    GameKit::AwsApiInitializer::Initialize(m_logCb, this);
+    Logging::Log(m_logCb, Level::Info, "GameKitAccount instantiated");
+}
+
 GameKitAccount::~GameKitAccount()
 {
     if (m_deleteClients)

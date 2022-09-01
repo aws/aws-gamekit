@@ -268,7 +268,7 @@ extern "C"
      * @param callStatus A GameKit status code indicating the result of the API call. Status codes are defined in errors.h.
      * See the specific API's documentation for a list of possible status codes the API may return.
      */
-    typedef void(*GameSavingSlotActionResponseCallback)(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, Slot slot, unsigned int callStatus);
+    typedef void(*GameSavingSlotActionResponseCallback)(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, const Slot* slot, unsigned int callStatus);
 
     /**
      * @brief A static callback function that will be invoked by GameKitLoadSlot() upon completion of the call (both for success or failure).
@@ -283,7 +283,7 @@ extern "C"
      * @param callStatus A GameKit status code indicating the result of the API call. Status codes are defined in errors.h.
      * See the specific API's documentation for a list of possible status codes the API may return.
      */
-    typedef void(*GameSavingDataResponseCallback)(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, Slot slot, const uint8_t* data, unsigned int dataSize, unsigned int callStatus);
+    typedef void(*GameSavingDataResponseCallback)(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, const Slot* slot, const uint8_t* data, unsigned int dataSize, unsigned int callStatus);
 
     /**
      * @brief Save a byte array to a file, overwriting the file if it already exists.

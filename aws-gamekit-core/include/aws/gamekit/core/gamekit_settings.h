@@ -48,6 +48,8 @@ namespace GameKit
      * - List of activated/deactivated features
      * - Feature-specific variables (ex: "isFacebookLoginEnabled" for Identity)
      *
+     * GameKitSettings should not be called from a build at runtime. GameKitSettings can create files and alter critical AWS settings which should not be done from a built version of a game.
+     *
      * The file is stored at "GAMEKIT_ROOT/shortGameName/saveInfo.yml".
      *
      * The file is read/written through usage of the plugin UI. For example, when a feature is activated,
@@ -66,8 +68,8 @@ namespace GameKit
         YAML::Node m_gamekitYamlSettings;
         FuncLogCallback m_logCb;
 
-        unsigned int readAwsCredentials(const std::string& profileName, Aws::Config::AWSConfigFileProfileConfigLoader& configLoader, const std::string& credentialsFileLocation, Aws::Auth::AWSCredentials& credentials, Aws::Config::AWSProfileConfigLoader::ProfilesContainer& profiles, FuncLogCallback logCb) const;
-        unsigned int persistAwsProfiles(Aws::Config::AWSConfigFileProfileConfigLoader& configLoader, const std::string& credentialsFileLocation, const Aws::Config::AWSProfileConfigLoader::ProfilesContainer& profiles, FuncLogCallback logCb) const;
+        static unsigned int readAwsCredentials(const std::string& profileName, Aws::Config::AWSConfigFileProfileConfigLoader& configLoader, const std::string& credentialsFileLocation, Aws::Auth::AWSCredentials& credentials, Aws::Config::AWSProfileConfigLoader::ProfilesContainer& profiles, FuncLogCallback logCb);
+        static unsigned int persistAwsProfiles(Aws::Config::AWSConfigFileProfileConfigLoader& configLoader, const std::string& credentialsFileLocation, const Aws::Config::AWSProfileConfigLoader::ProfilesContainer& profiles, FuncLogCallback logCb);
     public:
         GameKitSettings(const std::string& gamekitRoot, const std::string& pluginVersion, const std::string& shortGameName, const std::string& currentEnvironment, FuncLogCallback logCallback);
         ~GameKitSettings();
@@ -81,6 +83,7 @@ namespace GameKit
         void SetFeatureVariables(FeatureType featureType, const std::map<std::string, std::string>& vars);
         void DeleteFeatureVariable(FeatureType featureType, std::string varName);
         unsigned int SaveSettings();
+        unsigned int PopulateAndSave(const std::string& gameName, const std::string& envCode, const std::string& region);
         std::string GetGameName() const;
         std::string GetLastUsedRegion() const;
         std::string GetLastUsedEnvironment() const;
@@ -92,9 +95,10 @@ namespace GameKit
         std::string GetSettingsFilePath() const;
         void Reload();
 
-        unsigned int SaveAwsCredentials(const std::string& profileName, const std::string& accessKey, const std::string& secretKey, FuncLogCallback logCb) const;
-        unsigned int SetAwsAccessKey(const std::string& profileName, const std::string& newAccessKey, FuncLogCallback logCb) const;
-        unsigned int SetAwsSecretKey(const std::string& profileName, const std::string& newSecretKey, FuncLogCallback logCb) const;
-        unsigned int GetAwsProfile(const std::string& profileName, DISPATCH_RECEIVER_HANDLE receiver, FuncAwsProfileResponseCallback responseCallback, FuncLogCallback logCb) const;
+        static unsigned int SaveAwsCredentials(const std::string& profileName, const std::string& accessKey, const std::string& secretKey, FuncLogCallback logCb);
+        static bool AwsProfileExists(const std::string& profileName);
+        static unsigned int SetAwsAccessKey(const std::string& profileName, const std::string& newAccessKey, FuncLogCallback logCb);
+        static unsigned int SetAwsSecretKey(const std::string& profileName, const std::string& newSecretKey, FuncLogCallback logCb);
+        static unsigned int GetAwsProfile(const std::string& profileName, DISPATCH_RECEIVER_HANDLE receiver, FuncAwsProfileResponseCallback responseCallback, FuncLogCallback logCb);
     };
 }

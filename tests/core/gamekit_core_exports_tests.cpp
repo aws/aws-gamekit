@@ -56,7 +56,7 @@ public:
 };
 
 static std::vector<std::string> resourceInfoCache;
-void ResourceInfoCallback(const char* logicalResourceId, const char* resourceType, const char* resourceStatus)
+void ResourceInfoCallbackTest(const char* logicalResourceId, const char* resourceType, const char* resourceStatus)
 {
     resourceInfoCache[0] = logicalResourceId;
     resourceInfoCache[1] = resourceType;
@@ -150,8 +150,8 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountGetBaseAndInstancePaths_
     // assert
     ASSERT_EQ(strcmp(cfBasePath, "/x/y/z/cloudformation/"), 0);
     ASSERT_EQ(strcmp(funcBasePath, "/x/y/z/functions/"), 0);
-    ASSERT_EQ(strcmp(cfInstPath, "/a/b/c/testgame/dev/cloudformation/"), 0);
-    ASSERT_EQ(strcmp(funcInstPath, "/a/b/c/testgame/dev/functions/"), 0);
+    ASSERT_EQ(strcmp(cfInstPath, "/a/b/c/testgame/dev/uswe2/cloudformation/"), 0);
+    ASSERT_EQ(strcmp(funcInstPath, "/a/b/c/testgame/dev/uswe2/functions/"), 0);
 
     GameKitAccountInstanceRelease(acctInstance);
 }
@@ -512,8 +512,8 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitFeatureResourceGetBaseAndInstan
     // assert
     ASSERT_EQ(strcmp(cfBasePath, "/x/y/z/cloudformation/identity/"), 0);
     ASSERT_EQ(strcmp(funcBasePath, "/x/y/z/functions/identity/"), 0);
-    ASSERT_EQ(strcmp(cfInstPath, "/a/b/c/testgame/dev/cloudformation/identity/"), 0);
-    ASSERT_EQ(strcmp(funcInstPath, "/a/b/c/testgame/dev/functions/identity/"), 0);
+    ASSERT_EQ(strcmp(cfInstPath, "/a/b/c/testgame/dev/uswe2/cloudformation/identity/"), 0);
+    ASSERT_EQ(strcmp(funcInstPath, "/a/b/c/testgame/dev/uswe2/functions/identity/"), 0);
 
     GameKitResourcesInstanceRelease(resourceInstance);
 }
@@ -711,7 +711,7 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitFeatureDescribeStackResources_S
     resourceInfoCache.resize(3);
 
     // act
-    unsigned int result = GameKitResourcesDescribeStackResources(resourceInstance, ResourceInfoCallback);
+    unsigned int result = GameKitResourcesDescribeStackResources(resourceInstance, ResourceInfoCallbackTest);
 
     // assert
     ASSERT_EQ(result, GameKit::GAMEKIT_SUCCESS);

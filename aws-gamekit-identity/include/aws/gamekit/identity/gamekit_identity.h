@@ -115,6 +115,7 @@ namespace GameKit
              * @return The result code of the operation.
              * - GAMEKIT_SUCCESS: The API call was successful.
              * - GAMEKIT_ERROR_REQUEST_TIMED_OUT: PollForCompletion timed out waiting for Facebook login completion.
+             * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called.
             */
             unsigned int PollFacebookLoginCompletion(const std::string& requestId, int timeout, std::string& encryptedLocation);
 
@@ -125,6 +126,7 @@ namespace GameKit
              * @return The result code of the operation.
              * - GAMEKIT_SUCCESS: The API call was successful.
              * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: Http request to get Facebook Token failed.
+             * - GAMEKIT_ERROR_SETTINGS_MISSING: One or more settings required for calling the backend are missing and the backend wasn't called.
             */
             unsigned int RetrieveFacebookTokens(const std::string& location);
 

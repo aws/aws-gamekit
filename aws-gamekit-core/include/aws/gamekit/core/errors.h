@@ -15,7 +15,6 @@ namespace GameKit
     static const unsigned int GAMEKIT_ERROR_INVALID_PROVIDER = 0x2;
     static const unsigned int GAMEKIT_ERROR_PARAMETERS_FILE_SAVE_FAILED = 0x3;
     static const unsigned int GAMEKIT_ERROR_CLOUDFORMATION_FILE_SAVE_FAILED = 0x4;
-    static const unsigned int GAMEKIT_ERROR_FUNCTIONS_COPY_FAILED = 0x4;
     static const unsigned int GAMEKIT_ERROR_SETTINGS_FILE_SAVE_FAILED = 0x5;
     static const unsigned int GAMEKIT_ERROR_NO_ID_TOKEN = 0x6;
     static const unsigned int GAMEKIT_ERROR_HTTP_REQUEST_FAILED = 0x7;
@@ -27,6 +26,7 @@ namespace GameKit
     static const unsigned int GAMEKIT_ERROR_FILE_READ_FAILED = 0xD;
     static const unsigned int GAMEKIT_ERROR_DIRECTORY_CREATE_FAILED = 0xE;
     static const unsigned int GAMEKIT_ERROR_DIRECTORY_NOT_FOUND = 0xF;
+    static const unsigned int GAMEKIT_ERROR_FUNCTIONS_COPY_FAILED = 0x10;
     static const unsigned int GAMEKIT_ERROR_METHOD_NOT_IMPLEMENTED = 0x15E;
     static const unsigned int GAMEKIT_ERROR_GENERAL = 0x15F;
     static const unsigned int GAMEKIT_ERROR_REGION_CODE_CONVERSION_FAILED = 0x160;
@@ -35,6 +35,7 @@ namespace GameKit
     static const unsigned int GAMEKIT_ERROR_CREDENTIALS_NOT_FOUND = 0x163;
     static const unsigned int GAMEKIT_ERROR_CREDENTIALS_FILE_MALFORMED = 0x164;
     static const unsigned int GAMEKIT_ERROR_REQUEST_TIMED_OUT = 0x165;
+    static const unsigned int GAMEKIT_ERROR_SETTINGS_MISSING = 0x166;
    
     // Bootstrapping status codes (501-1000)
     static const unsigned int GAMEKIT_ERROR_BOOTSTRAP_BUCKET_LOOKUP_FAILED = 0x1F5;
@@ -66,6 +67,12 @@ namespace GameKit
     static const unsigned int GAMEKIT_ERROR_CLOUDFORMATION_GET_TEMPLATE_FAILED = 0x3FC;
     static const unsigned int GAMEKIT_ERROR_PARAMSTORE_READ_FAILED = 0x3FD;
     static const unsigned int GAMEKIT_ERROR_CLOUDFORMATION_NO_CURRENT_STACK_STATUS = 0x3FE;
+    static const unsigned int GAMEKIT_ERROR_FEATURE_NOT_AVAILABLE = 0x3FF;
+
+    // Orchestration status codes (1501 - 2000)
+    static const unsigned int GAMEKIT_ERROR_ORCHESTRATION_INVALID_FEATURE_STATE = 0x5DD;
+    static const unsigned int GAMEKIT_ERROR_ORCHESTRATION_INVALID_FEATURE_SETTINGS = 0x5DE;
+    static const unsigned int GAMEKIT_ERROR_ORCHESTRATION_DEPLOYMENT_IN_PROGRESS = 0x5DF;
 
     // Identity status codes (0x10000 - 0x103FF)
     static const unsigned int GAMEKIT_ERROR_REGISTER_USER_FAILED = 0x10000;
@@ -84,6 +91,7 @@ namespace GameKit
     // Achievements status codes (0x10800 - 0x10BFF)
     static const unsigned int GAMEKIT_ERROR_ACHIEVEMENTS_ICON_UPLOAD_FAILED = 0x10800;
     static const unsigned int GAMEKIT_ERROR_ACHIEVEMENTS_INVALID_ID = 0x10801;
+    static const unsigned int GAMEKIT_ERROR_ACHIEVEMENTS_PAYLOAD_TOO_LARGE = 0x10802;
 
     // User Gameplay Data status codes (0x10C00 - 0x10FFF)
     static const unsigned int GAMEKIT_ERROR_USER_GAMEPLAY_DATA_PAYLOAD_INVALID = 0x010C00;

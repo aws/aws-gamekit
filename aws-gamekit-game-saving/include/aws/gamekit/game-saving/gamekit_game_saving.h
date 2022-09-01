@@ -181,7 +181,7 @@ namespace GameKit
             }
 
             /**
-             * @brief Clears the synced slot cache. Should be used for testing only.
+             * @brief Clears the synced slot cache. Should be used when a new user logs in to ensure any previously synced slots are removed.
             */
             void ClearSyncedSlots()
             {

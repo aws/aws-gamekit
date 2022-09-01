@@ -54,11 +54,11 @@ namespace GameKit
                     this->callStatuses.push_back(callStatus);
                 }
 
-                void CallbackHandler(const Slot* syncedSlots, unsigned int slotCount, Slot slot, unsigned int callStatus)
+                void CallbackHandler(const Slot* syncedSlots, unsigned int slotCount, const Slot* slot, unsigned int callStatus)
                 {
                     this->syncedSlots.clear();
                     this->slotCount = slotCount;
-                    this->slot = slot;
+                    this->slot = *slot;
 
                     for (unsigned int i = 0; i < slotCount ; ++i)
                     {
@@ -69,11 +69,11 @@ namespace GameKit
                     this->callStatus = callStatus;
                 }
 
-                void CallbackHandler(const Slot* syncedSlots, unsigned int slotCount, Slot slot, const uint8_t* data, unsigned int dataSize, unsigned int callStatus)
+                void CallbackHandler(const Slot* syncedSlots, unsigned int slotCount, const Slot* slot, const uint8_t* data, unsigned int dataSize, unsigned int callStatus)
                 {
                     this->syncedSlots.clear();
                     this->slotCount = slotCount;
-                    this->slot = slot;
+                    this->slot = *slot;
 
                     for (unsigned int i = 0; i < slotCount; ++i)
                     {
@@ -108,12 +108,12 @@ namespace GameKit
                     static_cast<Dispatcher*>(dispatchReceiver)->CallbackHandler(syncedSlots, slotCount, complete, callStatus);
                 };
 
-                GameSavingSlotActionResponseCallback slotActionCallback = [](DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, Slot slot, unsigned int callStatus)
+                GameSavingSlotActionResponseCallback slotActionCallback = [](DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, const Slot* slot, unsigned int callStatus)
                 {
                     static_cast<Dispatcher*>(dispatchReceiver)->CallbackHandler(syncedSlots, slotCount, slot, callStatus);
                 };
 
-                GameSavingDataResponseCallback slotDataResponseCallback = [](DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, Slot slot, const uint8_t* data, unsigned int dataSize, unsigned int callStatus)
+                GameSavingDataResponseCallback slotDataResponseCallback = [](DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, const Slot* slot, const uint8_t* data, unsigned int dataSize, unsigned int callStatus)
                 {
                     static_cast<Dispatcher*>(dispatchReceiver)->CallbackHandler(syncedSlots, slotCount, slot, data, dataSize, callStatus);
                 };

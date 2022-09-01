@@ -1,105 +1,17 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "ticker_tests.h"
+// GameKit
 #include "test_log.h"
-
-#include <aws/core/utils/memory/stl/AWSAllocator.h>
-
-class GameKitUtilsTickerTestFixture;
-typedef std::vector<bool> TickCallbacks;
+#include "ticker_tests.h"
 
 using namespace GameKit::Tests::Utils;
 
-GameKitUtilsTickerTestFixture* tickerTestInstance = nullptr;
-class GameKitUtilsTickerTestFixture : public ::testing::Test
-{
-protected:
-    typedef TestLog<GameKitUtilsTickerTestFixture> TestLogger;
-
-public:
-    GameKitUtilsTickerTestFixture()
-    {}
-
-    ~GameKitUtilsTickerTestFixture()
-    {}
-
-    void SetUp()
-    {
-        tickerTestInstance = this;
-        TestLogger::Clear();
-    }
-
-    void TearDown()
-    {
-        tickerTestInstance = nullptr;
-        callBacks1.clear();
-        callBacks2.clear();
-    }
-
-    void MockTickCallback1()
-    {
-        callBacks1.push_back(true);
-    }
-
-    void MockTickCallback2()
-    {
-        callBacks2.push_back(true);
-    }
-
-    void MockTickCallbackAbort()
-    {
-        callBacks1.push_back(true);
-        m_ticker->AbortLoop();
-    }
-
-    std::vector<bool> GetCallbacks1()
-    {
-        return callBacks1;
-    }
-
-    std::vector<bool> GetCallbacks2()
-    {
-        return callBacks2;
-    }
-
-protected:
-    GameKit::Utils::Ticker* m_ticker;
-    TickCallbacks callBacks1;
-    TickCallbacks callBacks2;
-};
-
-void TickCallbackWrapper1()
-{
-    if (tickerTestInstance != nullptr)
-    {
-        tickerTestInstance->MockTickCallback1();
-    }
-}
-
-void TickCallbackWrapper2()
-{
-    if (tickerTestInstance != nullptr)
-    {
-        tickerTestInstance->MockTickCallback2();
-    }
-}
-
-void TickCallbackWrapperAbort()
-{
-    if (tickerTestInstance != nullptr)
-    {
-        tickerTestInstance->MockTickCallbackAbort();
-    }
-}
-
-
-
-using namespace GameKit::Tests::Utils;
-TEST_F(GameKitUtilsTickerTestFixture, Ticker_Executecallback_Success)
+#pragma region Base Class Tests
+void GameKitUtilsTickerTestFixture::Test_Ticker_ExecuteCallback_Success()
 {
     // arrange
-    GameKit::Utils::Ticker* t = new GameKit::Utils::Ticker(1, TickCallbackWrapper1, TestLogger::Log);
+    std::unique_ptr<GameKit::Utils::Ticker> t = CreateTicker(1, std::bind(&GameKitUtilsTickerTestFixture::MockTickCallback1, this), TestLogger::Log);
 
     // act
     // the Ticker will execute every second for 4 seconds. At each tick, it will add an item
@@ -109,14 +21,14 @@ TEST_F(GameKitUtilsTickerTestFixture, Ticker_Executecallback_Success)
     t->Stop();
 
     // assert
-    ASSERT_EQ(4, tickerTestInstance->GetCallbacks1().size());
+    ASSERT_EQ(4, GetCallbacks1().size());
 }
 
-TEST_F(GameKitUtilsTickerTestFixture, Ticker_Abort_Success)
+void GameKitUtilsTickerTestFixture::Test_Ticker_Abort_Success()
 {
     // arrange
-    GameKit::Utils::Ticker* t = new GameKit::Utils::Ticker(1, TickCallbackWrapperAbort, TestLogger::Log);
-    m_ticker = t;
+    std::unique_ptr<GameKit::Utils::Ticker> t = CreateTicker(1, std::bind(&GameKitUtilsTickerTestFixture::MockTickCallbackAbort, this), TestLogger::Log);
+    m_ticker = t.get();
 
     // act
     t->Start();
@@ -124,26 +36,43 @@ TEST_F(GameKitUtilsTickerTestFixture, Ticker_Abort_Success)
     t->Stop();
 
     // assert
-    ASSERT_EQ(1, tickerTestInstance->GetCallbacks1().size());
+    ASSERT_EQ(1, GetCallbacks1().size());
 }
 
-TEST_F(GameKitUtilsTickerTestFixture, SharedTicker_ThreadStopsAfterTickerDestroyed)
+void GameKitUtilsTickerTestFixture::Test_SharedTicker_ThreadStopsAfterTickerDestroyed()
 {
     // arrange
-    std::shared_ptr<GameKit::Utils::Ticker> sharedTicker;
-    sharedTicker = Aws::MakeShared<GameKit::Utils::Ticker>("ticker", 1, TickCallbackWrapper1, TestLogger::Log);
+    std::shared_ptr<GameKit::Utils::Ticker> sharedTicker = MakeSharedTicker("ticker",
+        1, std::bind(&GameKitUtilsTickerTestFixture::MockTickCallback1, this), TestLogger::Log);
 
     // act
     sharedTicker->Start();
     std::this_thread::sleep_for(std::chrono::seconds(2));
     sharedTicker->Stop();
 
-    sharedTicker.reset(new GameKit::Utils::Ticker(1, TickCallbackWrapper2, TestLogger::Log));
+    sharedTicker.reset(CreateTicker(1, std::bind(&GameKitUtilsTickerTestFixture::MockTickCallback2, this), TestLogger::Log).release());
     sharedTicker->Start();
     std::this_thread::sleep_for(std::chrono::seconds(3));
     sharedTicker->Stop();
 
     // assert
-    ASSERT_EQ(2, tickerTestInstance->GetCallbacks1().size());
-    ASSERT_EQ(3, tickerTestInstance->GetCallbacks2().size());
+    ASSERT_EQ(2, GetCallbacks1().size());
+    ASSERT_EQ(3, GetCallbacks2().size());
 }
+
+void GameKitUtilsTickerTestFixture::Test_Ticker_StartCalledTwice_NewThreadNotStarted()
+{
+    // arrange
+    std::unique_ptr<GameKit::Utils::Ticker> t = CreateTicker(1, std::bind(&GameKitUtilsTickerTestFixture::MockTickCallback1, this), TestLogger::Log);
+
+    // act
+    t->Start();
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    t->Start();
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    t->Stop();
+
+    // assert
+    ASSERT_EQ(5, GetCallbacks1().size());
+}
+#pragma endregion

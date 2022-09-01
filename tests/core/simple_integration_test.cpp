@@ -33,8 +33,8 @@ public:
 using namespace GameKit::Tests::SimpleIntegration;
 TEST_F(SimpleIntegrationTestFixture, DISABLED_SimpleIntegrationTest)
 {
-    gamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
     gamekitAccountInstance->SetPluginRoot("../core/test_data/sampleplugin/base");
+    gamekitAccountInstance->SetGameKitRoot("../core/test_data/sampleplugin/instance");
 
     auto result = gamekitAccountInstance->HasValidCredentials();
     ASSERT_TRUE(result) << "Failed credentials check.";

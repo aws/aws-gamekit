@@ -26,9 +26,7 @@
 
 #include <aws/gamekit/core/api.h>
 
-#if defined(_WIN32) || defined(ANDROID) || defined(__ANDROID__)
 #include <boost/filesystem.hpp>
-#endif
 
 namespace GameKitInternal
 {

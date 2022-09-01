@@ -10,9 +10,9 @@ namespace GameKit
     {
         namespace GameKitFeatureResources
         {
-            Aws::UniquePtr<GameKit::Mocks::MockS3Client> s3Mock;
-            Aws::UniquePtr<GameKit::Mocks::MockSSMClient> ssmMock;
-            Aws::UniquePtr<GameKit::Mocks::MockCloudFormationClient> cfnMock;
+            std::unique_ptr<GameKit::Mocks::MockS3Client> s3Mock;
+            std::unique_ptr<GameKit::Mocks::MockSSMClient> ssmMock;
+            std::unique_ptr<GameKit::Mocks::MockCloudFormationClient> cfnMock;
 
             using namespace testing;
             namespace S3Model = Aws::S3::Model;

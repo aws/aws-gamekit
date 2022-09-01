@@ -84,6 +84,7 @@ extern "C"
      * - GAMEKIT_ERROR_SIGN_REQUEST_FAILED: Was unable to sign the internal http request with account credentials and info, possibly because they do not have sufficient permissions.
      * - GAMEKIT_ERROR_HTTP_REQUEST_FAILED: The backend HTTP request failed. Check the logs to see what the HTTP response code was.
      * - GAMEKIT_ERROR_PARSE_JSON_FAILED: The backend returned a malformed JSON payload. This should not happen. If it does, it indicates there is a bug in the backend code.
+     * - GAMEKIT_ERROR_ACHIEVEMENTS_PAYLOAD_TOO_LARGE: The argument list is too large to pass as a query string parameter.
     */
     GAMEKIT_API unsigned int GameKitAdminDeleteAchievements(GAMEKIT_ADMIN_ACHIEVEMENTS_INSTANCE_HANDLE achievementsInstance, const char* const* achievementIdentifiers, unsigned int batchSize);
 

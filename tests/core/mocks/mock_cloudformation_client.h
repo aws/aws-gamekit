@@ -91,6 +91,7 @@ namespace GameKit
             MOCK_METHOD(Aws::CloudFormation::Model::DescribeStackEventsOutcomeCallable, DescribeStackEventsCallable, (const Aws::CloudFormation::Model::DescribeStackEventsRequest& request), (const, override));
             MOCK_METHOD(Aws::CloudFormation::Model::DeleteStackOutcomeCallable, DeleteStackCallable, (const Aws::CloudFormation::Model::DeleteStackRequest& request), (const, override));
             MOCK_METHOD(Aws::CloudFormation::Model::GetTemplateOutcome, GetTemplate, (const Aws::CloudFormation::Model::GetTemplateRequest& request), (const, override));
+            MOCK_METHOD(Aws::CloudFormation::Model::ListStacksOutcome, ListStacks, (const Aws::CloudFormation::Model::ListStacksRequest&), (const, override));
 
             // Delegates the default actions of the methods to a FakeCloudFormationClient object.
             void DelegateToFake()

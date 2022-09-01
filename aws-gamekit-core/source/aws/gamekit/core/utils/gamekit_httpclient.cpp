@@ -37,7 +37,9 @@ BaseHttpClient::BaseHttpClient(
     m_activeQueue(),
     m_pendingQueue(),
     m_stateReceiverHandle(nullptr),
-    m_statusCb(nullptr)
+    m_statusCb(nullptr),
+    m_cachedProcessedReceiverHandle(nullptr),
+    m_cachedProcessedCb(nullptr)
 {}
 
 BaseHttpClient::~BaseHttpClient()
@@ -77,6 +79,7 @@ void BaseHttpClient::StartRetryBackgroundThread()
     {
         std::string message = "Starting request pump thread with " + std::to_string(m_secondsInterval) + " seconds interval";
         Logging::Log(m_logCb, Level::Info, message.c_str());
+        m_retryStrategy->Reset();
         m_requestPump.Start();
     }
 }
@@ -330,45 +333,49 @@ void BaseHttpClient::preProcessQueue()
     // Add active and pending operations to a single queue.
     // Filter queue and process the remaining operations.
 
-    if (m_retryStrategy->ShouldRetry())
     {
+        std::lock_guard<std::mutex> lock(m_queueProcessingMutex);
+
+        size_t activeCount = m_activeQueue.size();
+        size_t pendingCount = m_pendingQueue.size();
+
+        if ((activeCount + pendingCount) == 0)
         {
-            std::lock_guard<std::mutex> lock(m_queueProcessingMutex);
+            Logging::Log(m_logCb, Level::Verbose, "Queues are empty, nothing to process.");
 
-            size_t activeCount = m_activeQueue.size();
-            size_t pendingCount = m_pendingQueue.size();
-            std::string message = "Processing " + std::to_string(activeCount) + " operations in active queue, " + std::to_string(pendingCount) + " operations in pending queue";
-            Logging::Log(m_logCb, Level::Info, message.c_str());
-
-            // append operations from active to pending queue
-            std::move(m_activeQueue.begin(), m_activeQueue.end(), std::back_inserter(m_pendingQueue));
-            m_activeQueue.clear();
-
-            // Filter pending queue, using active as target queue.
-            filterQueue(&m_pendingQueue, &m_activeQueue);
-            m_pendingQueue.clear();
-
-            if (m_activeQueue.empty())
+            if (!m_isConnectionOk)
             {
-                if (!m_isConnectionOk)
-                {
-                    Logging::Log(m_logCb, Level::Info, "Nothing left to process, reset connection state to \"Healthy\".");
-                    m_isConnectionOk = true;
-                    notifyNetworkStateChange();
-                }
-
-                m_errorDuringProcessing = false;
-
-                return;
+                Logging::Log(m_logCb, Level::Info, "Reset connection state to \"Healthy\".");
+                m_isConnectionOk = true;
+                notifyNetworkStateChange();
             }
+
+            m_errorDuringProcessing = false;
+
+            return;
         }
 
-        processActiveQueue();
+        if (!m_retryStrategy->ShouldRetry())
+        {
+            Logging::Log(m_logCb, Level::Info, "Skipped processing operations due to retry strategy.");
+            return;
+        }
+
+        std::string message = "Processing " + std::to_string(activeCount) + " operations in active queue, " + std::to_string(pendingCount) + " operations in pending queue";
+        Logging::Log(m_logCb, Level::Info, message.c_str());
+
+        // Append operations from active to pending queue to preserve order
+        std::move(m_activeQueue.begin(), m_activeQueue.end(), std::back_inserter(m_pendingQueue));
+        m_activeQueue.clear();
+
+        // Filter pending queue, using active queue as target.
+        filterQueue(&m_pendingQueue, &m_activeQueue);
+        m_pendingQueue.clear();
     }
-    else
-    {
-        Logging::Log(m_logCb, Level::Info, "Skipped processing operations due to retry strategy.");
-    }
+
+    // At this point we've determined that there are events to process in the active queue, 
+    // otherwise we would've returned earlier.
+    processActiveQueue();
 }
 
 void BaseHttpClient::processActiveQueue()
@@ -423,14 +430,12 @@ void BaseHttpClient::processActiveQueue()
             Logging::Log(m_logCb, Level::Warning, "Calling res_init()");
             res_init();
 #endif
-#if ENABLE_CURL_CLIENT
-            // Rewind request content body buffer when using Curl client, otherwise requests will be invalid
+            // Rewind request content body buffer, otherwise requests will be invalid
             if (operation->Request->HasContentType() || operation->Request->HasContentLength())
             {
                 operation->Request->GetContentBody()->clear();
                 operation->Request->GetContentBody()->seekg(0);
             }
-#endif
         }
 
     } while (overrideConnectionStatus && !m_activeQueue.empty() && !m_abortProcessingRequested);
@@ -478,7 +483,7 @@ void BaseHttpClient::DropAllCachedEvents()
 
 void BaseHttpClient::notifyNetworkStateChange() const
 {
-    if (m_statusCb != nullptr && m_stateReceiverHandle != nullptr)
+    if (m_statusCb != nullptr)
     {
         m_statusCb(m_stateReceiverHandle, m_isConnectionOk, m_clientName.c_str());
     }
@@ -486,7 +491,7 @@ void BaseHttpClient::notifyNetworkStateChange() const
 
 void BaseHttpClient::notifyCachedOperationsProcessed(bool cacheProcessingSucceeded) const
 {
-    if (m_cachedProcessedCb != nullptr && m_cachedProcessedReceiverHandle != nullptr)
+    if (m_cachedProcessedCb != nullptr)
     {
         m_cachedProcessedCb(m_cachedProcessedReceiverHandle, cacheProcessingSucceeded);
     }
@@ -592,7 +597,7 @@ RequestResult BaseHttpClient::makeOperationRequest(std::shared_ptr<IOperation> o
                 notifyNetworkStateChange();
             }
 
-            m_retryStrategy->IncreaseCounter();
+            m_retryStrategy->IncreaseThreshold();
 
             // Enqueue
             if (enqueuePending(operation))

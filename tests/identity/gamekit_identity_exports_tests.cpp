@@ -98,7 +98,7 @@ std::string GameKitIdentityExportsTestFixture::GetIdentityLambdaGetUserApiRespon
 TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityInstanceCreate_Success)
 {
     // act
-    GameKit::GameKitFeature* identityInstance = (GameKit::GameKitFeature*)createIdentityInstance();
+    GameKit::GameKitFeature* identityInstance = static_cast<GameKit::GameKitFeature*>(createIdentityInstance());
 
     // assert
     ASSERT_NE(identityInstance, nullptr);
@@ -324,11 +324,45 @@ TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityLoginBadPassword_Fa
     GameKitIdentityInstanceRelease(instance);
 }
 
+TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityLoginTwiceRevokeOldToken_Success)
+{
+    // arrange
+    GameKit::UserLogin login = { TEST_USERNAME, TEST_PASSWORD };
+
+    void* instance = createIdentityInstance();
+    GameKit::Identity::Identity* identityInstance = static_cast<GameKit::Identity::Identity*>(instance);
+    setIdentityMocks(instance);
+
+    EXPECT_CALL(*cognitoMock.get(), InitiateAuth(_))
+        .Times(2)
+        .WillRepeatedly(Return(SuccessOutcome<InitiateAuthResult, InitiateAuthOutcome>()));
+
+    EXPECT_CALL(*cognitoMock.get(), RevokeToken(_))
+        .Times(1)
+        .WillOnce(Return(SuccessOutcome<RevokeTokenResult, RevokeTokenOutcome>()));
+
+    // act
+    unsigned int resultLoginOne = GameKitIdentityLogin(instance, login);
+
+    identityInstance->GetSessionManager()->SetToken(GameKit::TokenType::RefreshToken, "tokenvalue");
+    identityInstance->GetSessionManager()->SetToken(GameKit::TokenType::AccessToken, "accesstokenvalue");
+
+    unsigned int resultLoginTwo = GameKitIdentityLogin(instance, login);
+
+    // assert
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, resultLoginOne);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, resultLoginTwo);
+    void* mock = cognitoMock.get();
+    ASSERT_TRUE(Mock::VerifyAndClearExpectations(mock));
+
+    GameKitIdentityInstanceRelease(instance);
+}
+
 TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityLogout_Success)
 {
     // arrange
     void* instance = createIdentityInstance();
-    GameKit::Identity::Identity* identityInstance = (GameKit::Identity::Identity*)(GameKit::GameKitFeature*)instance;
+    GameKit::Identity::Identity* identityInstance = static_cast<GameKit::Identity::Identity*>(instance);
     identityInstance->GetSessionManager()->SetToken(GameKit::TokenType::RefreshToken, "tokenvalue");
     identityInstance->GetSessionManager()->SetToken(GameKit::TokenType::AccessToken, "accesstokenvalue");
     setIdentityMocks(instance);
@@ -368,7 +402,7 @@ TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityLogout_CanLoginAfte
 {
     // arrange
     void* instance = createIdentityInstance();
-    GameKit::Identity::Identity* identityInstance = (GameKit::Identity::Identity*)(GameKit::GameKitFeature*)instance;
+    GameKit::Identity::Identity* identityInstance = static_cast<GameKit::Identity::Identity*>(instance);
     identityInstance->GetSessionManager()->SetToken(GameKit::TokenType::RefreshToken, "tokenvalue");
     identityInstance->GetSessionManager()->SetToken(GameKit::TokenType::AccessToken, "accesstokenvalue");
     GameKit::UserLogin login = { TEST_USERNAME, TEST_PASSWORD };

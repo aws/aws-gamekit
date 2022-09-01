@@ -17,8 +17,14 @@ GameKit::Identity::FacebookIdentityProvider::FacebookIdentityProvider(std::map<s
     :m_clientSettings(clientSettings), m_logCb(logCb)
 {
     GameKit::AwsApiInitializer::Initialize(m_logCb, this);
+    static const long TIMEOUT = 5000;
     Aws::Client::ClientConfiguration clientConfig;
+
     GameKit::DefaultClients::SetDefaultClientConfiguration(clientSettings, clientConfig);
+    // Extend timeouts to account for cold lambda starts
+    clientConfig.connectTimeoutMs = TIMEOUT;
+    clientConfig.httpRequestTimeoutMs = TIMEOUT;
+    clientConfig.requestTimeoutMs = TIMEOUT;
     m_httpClient = Aws::Http::CreateHttpClient(clientConfig);
 }
 
@@ -39,11 +45,19 @@ GameKit::Identity::LoginUrlResponseInternal GameKit::Identity::FacebookIdentityP
     std::string requestId = Aws::String(Aws::Utils::UUID::RandomUUID()).c_str();
     boost::algorithm::to_lower(requestId);
     std::string payload = "{\"request_id\": \"" + requestId + "\"}";
-    auto resp = this->makeRequest("/fbloginurl", Aws::Http::HttpMethod::HTTP_POST, payload);
+    std::shared_ptr <Aws::Http::HttpResponse> resp = this->makeRequest("/fbloginurl", Aws::Http::HttpMethod::HTTP_POST, payload);
+    Aws::Http::HttpResponseCode respCode = resp->GetResponseCode();
+    unsigned int gamekitStatus = respCode == Aws::Http::HttpResponseCode::OK ? GameKit::GAMEKIT_SUCCESS : GameKit::GAMEKIT_ERROR_HTTP_REQUEST_FAILED;
+    if (gamekitStatus != GameKit::GAMEKIT_SUCCESS)
+    {
+        std::string msg = "FacebookIdentityProvider::GetLoginUrl() unsuccessful http request, returned with code: " + std::to_string(static_cast<int>(respCode));
+        Logging::Log(m_logCb, Level::Error, msg.c_str());
+    }
 
     Aws::StringStream respBody;
     respBody << resp->GetResponseBody().rdbuf();
-    return LoginUrlResponseInternal{ requestId, ToStdString(respBody.str()) };
+
+    return LoginUrlResponseInternal{ gamekitStatus, requestId, ToStdString(respBody.str()) };
 }
 
 unsigned int GameKit::Identity::FacebookIdentityProvider::PollForCompletion(const std::string& requestId, int timeout, std::string& encryptedLocation)

@@ -6,7 +6,7 @@
 
 using namespace GameKit;
 
-AwsRegionMappings::AwsRegionMappings(const std::string& pluginRootPath, FuncLogCallback logCallback) : m_pluginRootPath(pluginRootPath), m_logCb(logCallback)
+AwsRegionMappings::AwsRegionMappings(const std::string& baseTemplatesFolder, FuncLogCallback logCallback) : m_baseTemplatesFolder(baseTemplatesFolder), m_logCb(logCallback)
 {
     Logging::Log(m_logCb, Level::Info, "AwsRegionMappings instantiated");
     
@@ -15,18 +15,17 @@ AwsRegionMappings::AwsRegionMappings(const std::string& pluginRootPath, FuncLogC
 
 AwsRegionMappings::~AwsRegionMappings()
 {
-    Logging::Log(m_logCb, Level::Info, "AwsRegionMappings instance deleted");
 }
 
 std::string GameKit::AwsRegionMappings::GetRegionMappingsFilePath() const
 {
-    return m_pluginRootPath + "/misc/" + GAMEKIT_AWS_REGION_MAPPINGS_FILE_NAME;
+    return m_baseTemplatesFolder + "/misc/" + GAMEKIT_AWS_REGION_MAPPINGS_FILE_NAME;
 }
 
 #pragma region Public Methods
-AwsRegionMappings& AwsRegionMappings::getInstance(const std::string& pluginRootPath, FuncLogCallback logCallback)
+AwsRegionMappings& AwsRegionMappings::getInstance(const std::string& baseTemplatesFolder, FuncLogCallback logCallback)
 {
-    static AwsRegionMappings instance(pluginRootPath, logCallback);
+    static AwsRegionMappings instance(baseTemplatesFolder, logCallback);
     return instance;
 }
 
@@ -37,7 +36,7 @@ std::string GameKit::AwsRegionMappings::getFiveLetterRegionCode(const std::strin
         std::string fiveLetterCode = m_regionShortCodes[GAMEKIT_FIVE_LETTER_REGION_CODES_PREFIX][fullRegionCode].Scalar();
         return fiveLetterCode;
     }
-    catch (const YAML::InvalidNode&)
+    catch (... /*static-linked YAML types can't be caught in a shared .so this is likely a YAML::InvalidNode exception*/)
     {
         std::string message = "AwsRegionMappings::getFiveLetterRegionCode() Could not find a 5 letter region code for: "
             + fullRegionCode

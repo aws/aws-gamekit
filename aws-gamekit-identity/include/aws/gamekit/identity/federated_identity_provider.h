@@ -19,6 +19,7 @@ namespace GameKit
     {
         struct LoginUrlResponseInternal
         {
+            unsigned int gamekitStatus;
             std::string requestId;
             std::string loginUrl;
         };

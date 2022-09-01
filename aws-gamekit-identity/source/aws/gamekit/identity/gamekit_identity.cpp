@@ -12,14 +12,21 @@ GameKit::Identity::Identity::Identity(FuncLogCallback logCb, Authentication::Gam
 {
     Logging::Log(logCb, Level::Info, "Identity::Identity()");
 
+    GameKit::AwsApiInitializer::Initialize(m_logCb, this);
+
     m_logCb = logCb;
     m_sessionManager = sessionManager;
-    m_httpClient = Aws::Http::CreateHttpClient(
-        GameKit::DefaultClients::GetDefaultClientConfigurationWithRegion(
-            m_sessionManager->GetClientSettings(),
-            ClientSettings::Authentication::SETTINGS_IDENTITY_REGION));
 
-    GameKit::AwsApiInitializer::Initialize(m_logCb, this);
+    static const long TIMEOUT = 7000;
+    Aws::Client::ClientConfiguration clientConfig;
+    GameKit::DefaultClients::SetDefaultClientConfiguration(m_sessionManager->GetClientSettings(), clientConfig);
+    clientConfig.region = m_sessionManager->GetClientSettings()[GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_REGION].c_str();
+    // Extend timeouts to account for cold lambda starts
+    clientConfig.connectTimeoutMs = TIMEOUT;
+    clientConfig.httpRequestTimeoutMs = TIMEOUT;
+    clientConfig.requestTimeoutMs = TIMEOUT;
+    m_httpClient = Aws::Http::CreateHttpClient(clientConfig);
+
     InitializeDefaultAwsClients();
 }
 
@@ -188,8 +195,15 @@ unsigned int GameKit::Identity::Identity::Login(UserLogin userLogin)
     // Store tokens in SessionManager. This will also start the background thread for refreshing the tokens
     if (m_sessionManager != nullptr)
     {
+        // Ensure if the user already has a token, it is revoked before a new token is assigned
+        std::string refreshToken = m_sessionManager->GetToken(GameKit::TokenType::RefreshToken);
+        if (!refreshToken.empty())
+        {
+            Logout();
+        }
+
         std::string accessToken = ToStdString(outcome.GetResult().GetAuthenticationResult().GetAccessToken());
-        std::string refreshToken = ToStdString(outcome.GetResult().GetAuthenticationResult().GetRefreshToken());
+        refreshToken = ToStdString(outcome.GetResult().GetAuthenticationResult().GetRefreshToken());
         std::string idToken = ToStdString(outcome.GetResult().GetAuthenticationResult().GetIdToken());
         int expiresIn = outcome.GetResult().GetAuthenticationResult().GetExpiresIn();
 
@@ -299,6 +313,11 @@ unsigned int GameKit::Identity::Identity::ConfirmForgotPassword(ConfirmForgotPas
 
 unsigned int GameKit::Identity::Identity::GetUser(const DISPATCH_RECEIVER_HANDLE receiver, const GameKit::FuncIdentityGetUserResponseCallback responseCallback)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::Identity))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     std::string idToken = m_sessionManager->GetToken(GameKit::TokenType::IdToken);
     if (idToken.empty())
     {
@@ -392,12 +411,22 @@ unsigned int GameKit::Identity::Identity::GetUser(const DISPATCH_RECEIVER_HANDLE
 
 unsigned int GameKit::Identity::Identity::GetFacebookLoginUrl(DISPATCH_RECEIVER_HANDLE dispatchReceiver, KeyValueCharPtrCallbackDispatcher responseCallback)
 {
-    auto provider = FederatedIdentityProviderFactory<FacebookIdentityProvider>::CreateProviderWithHttpClient(m_sessionManager->GetClientSettings(), m_httpClient, m_logCb);
-    const auto loginUrl = provider.GetLoginUrl();
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::Identity))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
+    FacebookIdentityProvider provider = FederatedIdentityProviderFactory<FacebookIdentityProvider>::CreateProviderWithHttpClient(m_sessionManager->GetClientSettings(), m_httpClient, m_logCb);
+    LoginUrlResponseInternal loginResponse = provider.GetLoginUrl();
+    if (loginResponse.gamekitStatus != GAMEKIT_SUCCESS)
+    {
+        return loginResponse.gamekitStatus;
+    }
+
     if (!(dispatchReceiver == nullptr) && !(responseCallback == nullptr))
     {
-        responseCallback(dispatchReceiver, KEY_FEDERATED_LOGIN_URL_REQUEST_ID.c_str(), loginUrl.requestId.c_str());
-        responseCallback(dispatchReceiver, KEY_FEDERATED_LOGIN_URL.c_str(), loginUrl.loginUrl.c_str());
+        responseCallback(dispatchReceiver, KEY_FEDERATED_LOGIN_URL_REQUEST_ID.c_str(), loginResponse.requestId.c_str());
+        responseCallback(dispatchReceiver, KEY_FEDERATED_LOGIN_URL.c_str(), loginResponse.loginUrl.c_str());
     }
 
     return GameKit::GAMEKIT_SUCCESS;
@@ -405,12 +434,22 @@ unsigned int GameKit::Identity::Identity::GetFacebookLoginUrl(DISPATCH_RECEIVER_
 
 unsigned int GameKit::Identity::Identity::PollFacebookLoginCompletion(const std::string& requestId, int timeout, std::string& encryptedLocation)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::Identity))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     FacebookIdentityProvider provider = FederatedIdentityProviderFactory<FacebookIdentityProvider>::CreateProviderWithHttpClient(m_sessionManager->GetClientSettings(), m_httpClient, m_logCb);
     return provider.PollForCompletion(requestId, timeout, encryptedLocation);
 }
 
 unsigned int GameKit::Identity::Identity::RetrieveFacebookTokens(const std::string& location)
 {
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::Identity))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
+
     FacebookIdentityProvider provider = FederatedIdentityProviderFactory<FacebookIdentityProvider>::CreateProviderWithHttpClient(m_sessionManager->GetClientSettings(), m_httpClient, m_logCb);
     std::string tokenString;
     unsigned int result = provider.RetrieveTokens(location, tokenString);

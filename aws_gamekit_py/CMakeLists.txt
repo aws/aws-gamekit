@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 
 project(aws_gamekit_py)
-if (BUILD_SHARED_LIBS AND ${ENABLE_GAMEKIT_PYBIND})
+if (BUILD_SHARED_LIBS)
 
   find_package(pybind11)
   find_package(Boost 1.76.0 COMPONENTS filesystem iostreams)

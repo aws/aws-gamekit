@@ -43,7 +43,7 @@ def build(args):
     dependencies = [aws_sdk, boost, yaml_cpp, curl, str(repository_root), args.type]
 
     run_and_log([str(scripts / "regenerate_projects_ios.sh")] + dependencies)
-    run_and_log(["xcodebuild", "-parallelizeTargets", "-configuration", args.type, "-target", "ALL_BUILD"])
+    run_and_log(["xcodebuild", "BITCODE_GENERATION_MODE=bitcode", "-parallelizeTargets", "-configuration", args.type, 'ENABLE_BITCODE=YES', "-target", "ALL_BUILD"])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Builds iOS binaries for AWS GameKit Cpp.")

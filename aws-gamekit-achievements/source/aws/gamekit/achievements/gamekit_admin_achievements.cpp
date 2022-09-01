@@ -4,6 +4,7 @@
 // AWS SDK
 #include <aws/core/http/HttpClientFactory.h>
 #include <aws/core/utils/StringUtils.h>
+#include <aws/s3/model/PutObjectRequest.h>
 
 // GameKit
 #include <aws/gamekit/achievements/gamekit_admin_achievements.h>
@@ -13,7 +14,7 @@
 
 // Boost
 #include <boost/algorithm/string/case_conv.hpp>
-#include <boost/filesystem.hpp>
+#include "aws/gamekit/core/utils/validation_utils.h"
 
 using namespace Aws::Utils;
 using namespace GameKit::Achievements;
@@ -64,12 +65,12 @@ unsigned int AdminAchievements::ListAchievements(unsigned int pageSize, bool wai
 {
     std::string startKey = "";
     std::string pagingToken = "";
-    unsigned int status = GameKit::GAMEKIT_SUCCESS;
+    unsigned int status;
 
     do
     {
         std::map<std::string, std::string> queryStringParameters;
-        if (startKey != "")
+        if (!startKey.empty())
         {
             queryStringParameters.insert({"start_key", startKey});
             queryStringParameters.insert({"paging_token", pagingToken});
@@ -111,7 +112,7 @@ unsigned int AdminAchievements::ListAchievements(unsigned int pageSize, bool wai
                 }
             }
         }
-    } while (startKey != "");
+    } while (!startKey.empty());
 
     return status;
 }
@@ -151,12 +152,22 @@ unsigned int AdminAchievements::DeleteAchievements(const char* const* achievemen
         arrayBody[i] = achievementIdentifiers[i];
     }
 
-    Aws::Utils::Json::JsonValue body;
-    body.WithArray("achievement_ids", arrayBody);
-    Aws::String body_string = body.View().WriteCompact();
+    Aws::Utils::Json::JsonValue achievementIds;
+    achievementIds.WithArray("achievement_ids", arrayBody);
+    Aws::String urlEncodedPayload = StringUtils::URLEncode(achievementIds.View().WriteCompact().c_str());
+
+    if (urlEncodedPayload.length() > GameKit::Utils::MAX_URL_PARAM_CHARS)
+    {
+        Logging::Log(m_logCb, Level::Error, "Attempting to delete too many achievements, payload too large. Get achievements to reset state then re-attempt deleting fewer achievements.");
+        return GAMEKIT_ERROR_ACHIEVEMENTS_PAYLOAD_TOO_LARGE;
+    }
 
     std::shared_ptr<Aws::Http::HttpResponse> response = std::shared_ptr<Aws::Http::HttpResponse>();
-    unsigned int status = makeAdminRequest(Aws::Http::HttpMethod::HTTP_DELETE, response, std::map<std::string, std::string>(), body_string);
+    std::map<std::string, std::string> queryStringParameters;
+    queryStringParameters.insert({"payload", std::string(urlEncodedPayload.c_str())});
+
+    unsigned int status = makeAdminRequest(Aws::Http::HttpMethod::HTTP_DELETE, response, queryStringParameters);
+
     if (status != GAMEKIT_SUCCESS)
     {
         return status;
@@ -208,7 +219,7 @@ unsigned int AdminAchievements::processResponse(const std::shared_ptr<Aws::Http:
         return GAMEKIT_ERROR_PARSE_JSON_FAILED;
     }
 
-    if (!(dispatchReceiver == nullptr) && !(responseCallback == nullptr))
+    if (dispatchReceiver != nullptr && responseCallback != nullptr)
     {
         const Aws::String output = jsonBody.View().WriteCompact();
         responseCallback(dispatchReceiver, output.c_str());
@@ -217,7 +228,7 @@ unsigned int AdminAchievements::processResponse(const std::shared_ptr<Aws::Http:
     return GAMEKIT_SUCCESS;
 }
 
-bool AdminAchievements::signRequestWithSessionCredentials(const std::shared_ptr<Aws::Http::HttpRequest> request)
+bool AdminAchievements::signRequestWithSessionCredentials(const std::shared_ptr<Aws::Http::HttpRequest>& request)
 {
     std::shared_ptr<Aws::Auth::AWSCredentialsProvider> credProvider = Aws::MakeShared<Aws::Auth::SimpleAWSCredentialsProvider>("AwsGameKit", m_adminApiSessionCredentials.GetAccessKeyId(), m_adminApiSessionCredentials.GetSecretAccessKey(), m_adminApiSessionCredentials.GetSessionToken());
     Aws::Client::AWSAuthV4Signer signer(credProvider, "execute-api", ToAwsString(m_accountCredentials.region), Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Always, false);
@@ -428,12 +439,16 @@ std::string AdminAchievements::getShortRegionCode(const std::string& region) con
     return regionMappings.getFiveLetterRegionCode(region);
 }
 
-unsigned int AdminAchievements::makeAdminRequest(const Aws::Http::HttpMethod method, std::shared_ptr<Aws::Http::HttpResponse>& response, const std::map<std::string, std::string>& queryStringParams, const Aws::String& body)
+unsigned int AdminAchievements::makeAdminRequest(const Aws::Http::HttpMethod method, std::shared_ptr<Aws::Http::HttpResponse>& response,
+                                                 const std::map<std::string, std::string>& queryStringParams,
+                                                 const Aws::String& body)
 {
-    const std::string uri = m_sessionManager->GetClientSettings()[GameKit::ClientSettings::Achievements::SETTINGS_ACHIEVEMENTS_API_GATEWAY_BASE_URL] + "/admin";
+    if (!m_sessionManager->AreSettingsLoaded(FeatureType::Achievements))
+    {
+        return GAMEKIT_ERROR_SETTINGS_MISSING;
+    }
 
-    Aws::String startKey = "";
-    Aws::String pagingToken = "";
+    std::string uri = m_sessionManager->GetClientSettings()[GameKit::ClientSettings::Achievements::SETTINGS_ACHIEVEMENTS_API_GATEWAY_BASE_URL] + "/admin";
     unsigned int status = GameKit::GAMEKIT_SUCCESS;
 
     auto assembleAndExecuteRequest = [&](bool forceCredentialRefresh=false) mutable
@@ -473,7 +488,7 @@ unsigned int AdminAchievements::makeAdminRequest(const Aws::Http::HttpMethod met
     assembleAndExecuteRequest();
     if (status == GAMEKIT_SUCCESS && response->GetResponseCode() == Aws::Http::HttpResponseCode::FORBIDDEN)
     {
-        // Retry once forcing it to reassume the role with permissions.
+        // Retry once forcing it to re-assume the role with permissions.
         assembleAndExecuteRequest(true);
     }
     return status;

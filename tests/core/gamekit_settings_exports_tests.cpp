@@ -65,7 +65,7 @@ class GameNameInfoReciever
 {
 public:
     std::string gameName;
-    void OnRecieveGameNameInfo(const char* gameName)
+    void OnReceiveGameNameInfo(const char* gameName)
     {
         this->gameName = gameName;
     }
@@ -95,7 +95,7 @@ class EnvDescriptionReciever
 {
 public:
     std::string envDescription;
-    void OnRecieveEnvDescription(const char* envDescription)
+    void OnReceiveEnvDescription(const char* envDescription)
     {
         this->envDescription = envDescription;
     }
@@ -105,7 +105,7 @@ class AllEnvsReciever
 {
 public:
     std::map<std::string, std::string> envs;
-    void OnRecieveEnvironments(const char* charKey, const char* charValue)
+    void OnReceiveEnvironments(const char* charKey, const char* charValue)
     {
         this->envs.insert({ charKey, charValue });
     }
@@ -115,7 +115,7 @@ class FeatureVarReciever
 {
 public:
     std::string varValue;
-    void OnRecieveFeatureVar(const char* varValue)
+    void OnReceiveFeatureVar(const char* varValue)
     {
         this->varValue = varValue;
     }
@@ -125,7 +125,7 @@ class AllVarsReciever
 {
 public:
     std::map<std::string, std::string> vars;
-    void OnRecieveVariables(const char* charKey, const char* charValue)
+    void OnReceiveVariables(const char* charKey, const char* charValue)
     {
         this->vars.insert({ charKey, charValue });
     }
@@ -137,7 +137,7 @@ class SettingsDispatcher
 public:
     static void GameInfoCallbackDispatcher(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const char* gameName)
     {
-        ((GameNameInfoReciever*)dispatchReceiver)->OnRecieveGameNameInfo(gameName);
+        ((GameNameInfoReciever*)dispatchReceiver)->OnReceiveGameNameInfo(gameName);
     }
 
     static void LastUsedRegionCallbackDispatcher(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const char* region)
@@ -152,22 +152,22 @@ public:
 
     static void EnvDescriptionCallbackDispatcher(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const char* envName)
     {
-        ((GameNameInfoReciever*)dispatchReceiver)->OnRecieveGameNameInfo(envName);
+        ((GameNameInfoReciever*)dispatchReceiver)->OnReceiveGameNameInfo(envName);
     }
 
     static void AllEnvsCallbackDispatcher(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const char* charKey, const char* charValue)
     {
-        ((AllEnvsReciever*)dispatchReceiver)->OnRecieveEnvironments(charKey, charValue);
+        ((AllEnvsReciever*)dispatchReceiver)->OnReceiveEnvironments(charKey, charValue);
     }
 
     static void FeatureVarCallbackDispatcher(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const char* varValue)
     {
-        ((FeatureVarReciever*)dispatchReceiver)->OnRecieveFeatureVar(varValue);
+        ((FeatureVarReciever*)dispatchReceiver)->OnReceiveFeatureVar(varValue);
     }
 
     static void AllVarsCallbackDispatcher(DISPATCH_RECEIVER_HANDLE dispatchReceiver, const char* charKey, const char* charValue)
     {
-        ((AllEnvsReciever*)dispatchReceiver)->OnRecieveEnvironments(charKey, charValue);
+        ((AllEnvsReciever*)dispatchReceiver)->OnReceiveEnvironments(charKey, charValue);
     }
 };
 
@@ -189,6 +189,21 @@ TEST_F(GameKitSettingsExportTestFixture, TestGameKitSettingsInstanceRelease_Succ
 
     // act
     GameKitSettingsInstanceRelease(settingsInstance);
+}
+
+TEST_F(GameKitSettingsExportTestFixture, TestGameKitSettingsInstanceCreateWithNoAWSFolder_SuccessAndFolderCreated)
+{
+    // arrange
+    remove(TEST_CREDENTIALS_FILE_LOCATION.c_str());
+
+    // act
+    const GameKit::GameKitSettings* settingsInstance = (GameKit::GameKitSettings*)createSettingsInstance();
+
+    // assert
+    ASSERT_NE(settingsInstance, nullptr);
+    ASSERT_TRUE(boost::filesystem::exists(TEST_CREDENTIALS_FILE_LOCATION));
+
+    delete(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, TestGameKitSettingsSetAndGetGameInfo_Success)
@@ -282,6 +297,40 @@ TEST_F(GameKitSettingsExportTestFixture, TestGameKitSettingsSetAndGetLastUsedReg
     // cleanup
     GameKitSettingsInstanceRelease(settingsInstance);
     delete(receiver);
+}
+
+TEST_F(GameKitSettingsExportTestFixture, TestGameKitSettingsPopulateAndSave_Success)
+{
+    // arrange
+    const std::string GAME_NAME = "test game name";
+    const std::string ENV = "tst";
+    const std::string REGION = "test region";
+
+    GameNameInfoReciever* const gameNameReceiver = new GameNameInfoReciever();
+    LastUsedEnvInfoReceiver* const envReceiver = new LastUsedEnvInfoReceiver();
+    LastUsedRegionReceiver* const regionReceiver = new LastUsedRegionReceiver();
+    
+    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
+
+    // act
+    unsigned int result = GameKitSettingsPopulateAndSave(settingsInstance, GAME_NAME.c_str(), ENV.c_str(), REGION.c_str());
+   
+    GameKitSettingsReload(settingsInstance);
+    GameKitSettingsGetGameName(settingsInstance, gameNameReceiver, SettingsDispatcher::GameInfoCallbackDispatcher);
+    GameKitSettingsGetLastUsedEnvironment(settingsInstance, envReceiver, SettingsDispatcher::LastUsedEnvInfoCallbackDispatcher);
+    GameKitSettingsGetLastUsedRegion(settingsInstance, regionReceiver, SettingsDispatcher::LastUsedRegionCallbackDispatcher);
+
+    // assert
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_STREQ(gameNameReceiver->gameName.c_str(), GAME_NAME.c_str());
+    ASSERT_STREQ(envReceiver->lastUsedEnv.c_str(), ENV.c_str());
+    ASSERT_STREQ(regionReceiver->lastUsedRegion.c_str(), REGION.c_str());
+
+    // cleanup
+    delete(regionReceiver);
+    delete(envReceiver);
+    delete(gameNameReceiver);
+    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, AddAndGetEnvironment_CustomEnvironmentSet)
@@ -488,40 +537,28 @@ TEST_F(GameKitSettingsExportTestFixture, KeyNotPresent_GetFeatureVars_ReturnEmpt
 
 TEST_F(GameKitSettingsExportTestFixture, FileEmpty_SaveNewAWSCredentials_ReturnSuccess)
 {
-    // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     // act
-    const unsigned int result = GameKitSaveAwsCredentials(settingsInstance, "GameKit-testgame", "AccessKey0406", "SecretKey0406", TestLogger::Log);
+    const unsigned int result = GameKitSaveAwsCredentials("GameKit-testgame", "AccessKey0406", "SecretKey0406", TestLogger::Log);
 
     // assert
     ASSERT_EQ(result, GameKit::GAMEKIT_SUCCESS);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, FileDoesNotExist_CreateCredentialsFile_ReturnSuccess)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
     remove(TEST_CREDENTIALS_FILE_LOCATION.c_str());
 
     // act
-    const unsigned int result = GameKitSaveAwsCredentials(settingsInstance, "GameKit-testgame", "AccessKey0406", "SecretKey0406", TestLogger::Log);
+    const unsigned int result = GameKitSaveAwsCredentials("GameKit-testgame", "AccessKey0406", "SecretKey0406", TestLogger::Log);
 
     // assert
     ASSERT_EQ(result, GameKit::GAMEKIT_SUCCESS);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, AWSCredentialsFileThatAlreadyExists_SaveNewAWSCredential_ReturnSuccess)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
 
     output << "[default]" << std::endl;
@@ -530,7 +567,7 @@ TEST_F(GameKitSettingsExportTestFixture, AWSCredentialsFileThatAlreadyExists_Sav
     output << "#Comment \n\n" << std::endl;
 
     // act
-    const unsigned int result = GameKitSaveAwsCredentials(settingsInstance, "GameKit-testgame", "AccessKey0406", "SecretKey0406", TestLogger::Log);
+    const unsigned int result = GameKitSaveAwsCredentials("GameKit-testgame", "AccessKey0406", "SecretKey0406", TestLogger::Log);
 
 
     // assert
@@ -548,32 +585,23 @@ TEST_F(GameKitSettingsExportTestFixture, AWSCredentialsFileThatAlreadyExists_Sav
     ASSERT_STREQ(verificationArray[0].c_str(), "[GameKit-testgame]");
     ASSERT_STREQ(verificationArray[3].c_str(), "[default]");
     ASSERT_EQ(result, GameKit::GAMEKIT_SUCCESS);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
-TEST_F(GameKitSettingsExportTestFixture, FileDoesNotExist_SetNewAccessKey_ReturnError)
+TEST_F(GameKitSettingsExportTestFixture, FileDoesNotExist_AwsProfileExists_ReturnFalse)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
     remove(TEST_CREDENTIALS_FILE_LOCATION.c_str());
 
     // act
-    const unsigned int result = GameKitSetAwsAccessKey(settingsInstance, "GameKit-testgame", "NewAccessKey12", TestLogger::Log);
+    const bool result = GameKitAwsProfileExists("GameKit-testgame");
 
     // assert
-    ASSERT_EQ(result, GameKit::GAMEKIT_ERROR_CREDENTIALS_FILE_NOT_FOUND);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
+    ASSERT_EQ(result, false);
 }
 
-TEST_F(GameKitSettingsExportTestFixture, FileExists_SetNewAccessKey_ReturnSuccess)
+TEST_F(GameKitSettingsExportTestFixture, ProfileExists_AwsProfileExists_ReturnTrue)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
 
     output << "[default]" << std::endl;
@@ -581,7 +609,51 @@ TEST_F(GameKitSettingsExportTestFixture, FileExists_SetNewAccessKey_ReturnSucces
     output << "aws_secret_access_key=DefaultSecretKey" << std::endl;
 
     // act
-    const unsigned int result = GameKitSetAwsAccessKey(settingsInstance, "default", "AccessKey0406", TestLogger::Log);
+    const bool result = GameKitAwsProfileExists("default");
+
+    // assert
+    ASSERT_EQ(result, true);
+}
+
+TEST_F(GameKitSettingsExportTestFixture, ProfileDoesNotExists_AwsProfileExists_ReturnFalse)
+{
+    // arrange
+    std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
+
+    output << "[default]" << std::endl;
+    output << "aws_access_key_id=DefaultAccessKey" << std::endl;
+    output << "aws_secret_access_key=DefaultSecretKey" << std::endl;
+
+    // act
+    const bool result = GameKitAwsProfileExists("jakesProfile");
+
+    // assert
+    ASSERT_EQ(result, false);
+}
+
+TEST_F(GameKitSettingsExportTestFixture, FileDoesNotExist_SetNewAccessKey_ReturnError)
+{
+    // arrange
+    remove(TEST_CREDENTIALS_FILE_LOCATION.c_str());
+
+    // act
+    const unsigned int result = GameKitSetAwsAccessKey("GameKit-testgame", "NewAccessKey12", TestLogger::Log);
+
+    // assert
+    ASSERT_EQ(result, GameKit::GAMEKIT_ERROR_CREDENTIALS_FILE_NOT_FOUND);
+}
+
+TEST_F(GameKitSettingsExportTestFixture, FileExists_SetNewAccessKey_ReturnSuccess)
+{
+    // arrange
+    std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
+
+    output << "[default]" << std::endl;
+    output << "aws_access_key_id=DefaultAccessKey" << std::endl;
+    output << "aws_secret_access_key=DefaultSecretKey" << std::endl;
+
+    // act
+    const unsigned int result = GameKitSetAwsAccessKey("default", "AccessKey0406", TestLogger::Log);
 
     // assert
     std::ifstream credentialsFile(TEST_CREDENTIALS_FILE_LOCATION);
@@ -599,16 +671,11 @@ TEST_F(GameKitSettingsExportTestFixture, FileExists_SetNewAccessKey_ReturnSucces
     ASSERT_STREQ(verificationArray[1].c_str(), "aws_access_key_id=AccessKey0406");
     ASSERT_STREQ(verificationArray[2].c_str(), "aws_secret_access_key=DefaultSecretKey");
     ASSERT_EQ(result, GameKit::GAMEKIT_SUCCESS);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, ProfileDoesNotExist_SetNewAccessKey_ReturnError)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
 
     output << "[default]" << std::endl;
@@ -616,7 +683,7 @@ TEST_F(GameKitSettingsExportTestFixture, ProfileDoesNotExist_SetNewAccessKey_Ret
     output << "aws_secret_access_key=DefaultSecretKey" << std::endl;
 
     // act
-    const unsigned int result = GameKitSetAwsAccessKey(settingsInstance, "GameKit-testgame", "AccessKey0406", TestLogger::Log);
+    const unsigned int result = GameKitSetAwsAccessKey("GameKit-testgame", "AccessKey0406", TestLogger::Log);
 
     // assert
     std::ifstream credentialsFile(TEST_CREDENTIALS_FILE_LOCATION);
@@ -634,32 +701,23 @@ TEST_F(GameKitSettingsExportTestFixture, ProfileDoesNotExist_SetNewAccessKey_Ret
     ASSERT_STREQ(verificationArray[1].c_str(), "aws_access_key_id=DefaultAccessKey");
     ASSERT_STREQ(verificationArray[2].c_str(), "aws_secret_access_key=DefaultSecretKey");
     ASSERT_EQ(result, GameKit::GAMEKIT_ERROR_CREDENTIALS_NOT_FOUND);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, FileDoesNotExist_SetNewSecret_ReturnError)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
     remove(TEST_CREDENTIALS_FILE_LOCATION.c_str());
 
     // act
-    const unsigned int result = GameKitSetAwsAccessKey(settingsInstance, "GameKit-testgame", "NewAccessKey12", TestLogger::Log);
+    const unsigned int result = GameKitSetAwsAccessKey("GameKit-testgame", "NewAccessKey12", TestLogger::Log);
 
     // assert
     ASSERT_EQ(result, GameKit::GAMEKIT_ERROR_CREDENTIALS_FILE_NOT_FOUND);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, FileExists_SetNewSecret_ReturnSuccess)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
 
     output << "[default]" << std::endl;
@@ -667,7 +725,7 @@ TEST_F(GameKitSettingsExportTestFixture, FileExists_SetNewSecret_ReturnSuccess)
     output << "aws_secret_access_key=DefaultSecretKey" << std::endl;
 
     // act
-    const unsigned int result = GameKitSetAwsSecretKey(settingsInstance, "default", "SecretKey0406", TestLogger::Log);
+    const unsigned int result = GameKitSetAwsSecretKey("default", "SecretKey0406", TestLogger::Log);
 
     // assert
     std::ifstream credentialsFile(TEST_CREDENTIALS_FILE_LOCATION);
@@ -685,16 +743,11 @@ TEST_F(GameKitSettingsExportTestFixture, FileExists_SetNewSecret_ReturnSuccess)
     ASSERT_STREQ(verificationArray[1].c_str(), "aws_access_key_id=DefaultAccessKey");
     ASSERT_STREQ(verificationArray[2].c_str(), "aws_secret_access_key=SecretKey0406");
     ASSERT_EQ(result, GameKit::GAMEKIT_SUCCESS);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, ProfileDoesNotExist_SetNewSecret_ReturnError)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
 
     output << "[default]" << std::endl;
@@ -702,7 +755,7 @@ TEST_F(GameKitSettingsExportTestFixture, ProfileDoesNotExist_SetNewSecret_Return
     output << "aws_secret_access_key=DefaultSecretKey" << std::endl;
 
     // act
-    const unsigned int result = GameKitSetAwsSecretKey(settingsInstance, "GameKit-Credentials", "SecretKey0406", TestLogger::Log);
+    const unsigned int result = GameKitSetAwsSecretKey("GameKit-Credentials", "SecretKey0406", TestLogger::Log);
 
     // assert
     std::ifstream credentialsFile(TEST_CREDENTIALS_FILE_LOCATION);
@@ -720,16 +773,11 @@ TEST_F(GameKitSettingsExportTestFixture, ProfileDoesNotExist_SetNewSecret_Return
     ASSERT_STREQ(verificationArray[1].c_str(), "aws_access_key_id=DefaultAccessKey");
     ASSERT_STREQ(verificationArray[2].c_str(), "aws_secret_access_key=DefaultSecretKey");
     ASSERT_EQ(result, GameKit::GAMEKIT_ERROR_CREDENTIALS_NOT_FOUND);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, FileExists_GetProfile_ReturnSuccess)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
 
     output << "[default]" << std::endl;
@@ -747,22 +795,17 @@ TEST_F(GameKitSettingsExportTestFixture, FileExists_GetProfile_ReturnSuccess)
     typedef LambdaDispatcher<decltype(valueSetter), void, const char*, const char*> ValueSetter;
 
     // act
-    const unsigned int result = GameKitGetAwsProfile(settingsInstance, "default", &valueSetter, ValueSetter::Dispatch, TestLogger::Log);
+    const unsigned int result = GameKitGetAwsProfile("default", &valueSetter, ValueSetter::Dispatch, TestLogger::Log);
 
     // assert
     ASSERT_STREQ(retrievedAccessKey.c_str(), "DefaultAccessKey");
     ASSERT_STREQ(retrievedSecret.c_str(), "DefaultSecretKey");
     ASSERT_EQ(result, GameKit::GAMEKIT_SUCCESS);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, MalformedProfile_GetProfile_ReturnError)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
 
     output << "default" << std::endl;
@@ -779,22 +822,17 @@ TEST_F(GameKitSettingsExportTestFixture, MalformedProfile_GetProfile_ReturnError
     typedef LambdaDispatcher<decltype(valueSetter), void, const char*, const char*> ValueSetter;
 
     // act
-    const unsigned int result = GameKitGetAwsProfile(settingsInstance, "default", &valueSetter, ValueSetter::Dispatch, TestLogger::Log);
+    const unsigned int result = GameKitGetAwsProfile("default", &valueSetter, ValueSetter::Dispatch, TestLogger::Log);
 
     // assert
     ASSERT_STREQ(retrievedAccessKey.c_str(), "");
     ASSERT_STREQ(retrievedSecret.c_str(), "");
     ASSERT_EQ(result, GameKit::GAMEKIT_ERROR_CREDENTIALS_FILE_MALFORMED);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }
 
 TEST_F(GameKitSettingsExportTestFixture, MissingProfile_GetProfile_ReturnError)
 {
     // arrange
-    const GAMEKIT_SETTINGS_INSTANCE_HANDLE settingsInstance = createSettingsInstance();
-
     std::ofstream output(TEST_CREDENTIALS_FILE_LOCATION);
 
     output << "[default]" << std::endl;
@@ -811,13 +849,10 @@ TEST_F(GameKitSettingsExportTestFixture, MissingProfile_GetProfile_ReturnError)
     typedef LambdaDispatcher<decltype(valueSetter), void, const char*, const char*> ValueSetter;
 
     // act
-    const unsigned int result = GameKitGetAwsProfile(settingsInstance, "GameKit-Credentials", &valueSetter, ValueSetter::Dispatch, TestLogger::Log);
+    const unsigned int result = GameKitGetAwsProfile("GameKit-Credentials", &valueSetter, ValueSetter::Dispatch, TestLogger::Log);
 
     // assert
     ASSERT_STREQ(retrievedAccessKey.c_str(), "");
     ASSERT_STREQ(retrievedSecret.c_str(), "");
     ASSERT_EQ(result, GameKit::GAMEKIT_ERROR_CREDENTIALS_NOT_FOUND);
-
-    // cleanup
-    GameKitSettingsInstanceRelease(settingsInstance);
 }

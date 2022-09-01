@@ -50,11 +50,8 @@ TEST_F(GameKitUtilsFileTestFixture, DirectoryExists_HashDirectory_StringIsCorrec
     auto calculateHashStatus = GameKit::Utils::FileUtils::CalculateDirectoryHash(directoryPath, hashStringOne);
 
     // expected hash before changing file
-#ifdef _WIN32
     const char* expectedHashSingleFile = "PB0KWVxeuirXQRhJnxwt+q0sYoch1hh/EzffJJawE/M=";
-#else
-    const char* expectedHashSingleFile = "JH8P7X93MdR5zAWo7TYgsAdDHvtEwfnNjtAnsq5mq5U=";
-#endif
+
     // assert
     ASSERT_EQ(calculateHashStatus, GAMEKIT_SUCCESS);
     ASSERT_EQ(hashStringOne, expectedHashSingleFile);
@@ -67,11 +64,8 @@ TEST_F(GameKitUtilsFileTestFixture, DirectoryExists_HashDirectory_StringIsCorrec
     calculateHashStatus = GameKit::Utils::FileUtils::CalculateDirectoryHash(directoryPath, hashStringTwo);
 
     // expected hash after the file changes
-#ifdef _WIN32
     expectedHashSingleFile = "UOb8/ITsCwVftIOwtvMmYdARTFBmWzeHniX3EjypzMs=";
-#else
-    expectedHashSingleFile = "JnvSwdVoJ4as6uAW7Kd5zvd30aJ+D1mDjHNsyPv3GYg=";
-#endif
+
     // assert
     ASSERT_EQ(calculateHashStatus, GAMEKIT_SUCCESS);
     ASSERT_EQ(hashStringTwo, expectedHashSingleFile);
@@ -545,5 +539,27 @@ TEST_F(GameKitUtilsFileTestFixture, NonAscii_BoostFilesystemPath_Conversions)
 #else
     ASSERT_EQ(widePath, boost::filesystem::path(filePath).wstring());
     ASSERT_EQ(widePath, boost::filesystem::path(widePath).wstring());
+#endif
+}
+
+TEST_F(GameKitUtilsFileTestFixture, WindowsOnly_BoostFilesystemPath_LongPaths)
+{
+#ifdef _WIN32
+    // conversion to wide should add prefix on absolute paths, convert to backslash
+    ASSERT_EQ(std::wstring(L"\\\\?\\C:\\"), boost::filesystem::path("C:/").wstring());
+    ASSERT_EQ(std::wstring(L"\\\\?\\UNC\\net\\share"), boost::filesystem::path("\\\\net\\share").wstring());
+
+    // simple un-prefixed paths should round-trip cleanly aside from backslash conversion
+    ASSERT_EQ(std::string("C:\\"), boost::filesystem::path("C:/").string());
+    ASSERT_EQ(std::string("\\\\net\\share"), boost::filesystem::path("\\\\net\\share").string());
+
+    // conversion to narrow should remove prefix from absolute paths
+    ASSERT_EQ(std::string("C:\\"), boost::filesystem::path(L"\\\\?\\C:\\").string());
+    ASSERT_EQ(std::string("\\\\net\\share"), boost::filesystem::path(L"\\\\?\\UNC\\net\\share").string());
+
+    // user-prefixed narrow paths should have prefix stripped due to internal wstring conversion
+    // (this is a little unintuitive, but we are testing the expected behavior)
+    ASSERT_EQ(std::string("C:\\"), boost::filesystem::path("\\\\?\\C:\\").string());
+    ASSERT_EQ(std::string("\\\\net\\share"), boost::filesystem::path("\\\\?\\UNC\\net\\share").string());
 #endif
 }
