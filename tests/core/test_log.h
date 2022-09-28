@@ -6,6 +6,9 @@
 // GameKit
 #include <aws/gamekit/core/logging.h>
 
+// GTest
+#include <gtest/gtest.h>
+
 // Standard Library
 #include <vector>
 #include <string>
@@ -40,11 +43,37 @@ public:
         return TestLog::logLines;
     }
 
-    static void DumpToConsole()
+    static void DumpToConsole(const std::string& header, bool isError)
     {
+        std::ostream& os = isError ? std::cerr : std::cout;
+        size_t prefix = std::hash<std::string>{}(header);
+        os << prefix << '|' << "TestLog::DumpToConsole() for " << header << " start" << std::endl;
         for (const std::string& line : TestLog::logLines)
         {
-            std::cout << line << std::endl;
+            os << prefix << '|' << line << std::endl;
+        }
+        os << prefix << '|' << "TestLog::DumpToConsole() for " << header << " end" << std::endl;
+    }
+
+    static void DumpToConsole(const testing::TestInfo* test_info, bool isError)
+    {
+        std::stringstream testName;
+        testName << test_info->test_suite_name() << "." << test_info->name();
+
+        DumpToConsole(testName.str(), isError);
+    }
+
+    static void DumpToConsole(bool isError = false)
+    {
+        DumpToConsole("(unknown)", "", isError);
+    }
+
+    static void DumpToConsoleIfTestFailed()
+    {
+        if (::testing::Test::HasFailure())
+        {
+            const testing::TestInfo* test_info = testing::UnitTest::GetInstance()->current_test_info();
+            DumpToConsole(test_info, true);
         }
     }
 

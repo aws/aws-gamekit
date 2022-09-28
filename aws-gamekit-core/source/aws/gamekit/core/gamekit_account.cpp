@@ -25,7 +25,7 @@ GameKitAccount::GameKitAccount(const AccountInfo& accountInfo, const AccountCred
     m_logCb = logCallback;
 
     GameKit::AwsApiInitializer::Initialize(m_logCb, this);
-    Logging::Log(m_logCb, Level::Info, "GameKitAccount instantiated");
+    Logging::Log(m_logCb, Level::Info, "GameKitAccount instantiated", this);
 }
 
 GameKitAccount::GameKitAccount(const AccountInfoCopy& accountInfo, const AccountCredentialsCopy& credentials, FuncLogCallback logCallback)
@@ -36,7 +36,7 @@ GameKitAccount::GameKitAccount(const AccountInfoCopy& accountInfo, const Account
     m_logCb = logCallback;
 
     GameKit::AwsApiInitializer::Initialize(m_logCb, this);
-    Logging::Log(m_logCb, Level::Info, "GameKitAccount instantiated");
+    Logging::Log(m_logCb, Level::Info, "GameKitAccount instantiated", this);
 }
 
 GameKitAccount::~GameKitAccount()
@@ -46,6 +46,7 @@ GameKitAccount::~GameKitAccount()
         this->DeleteClients();
     }
     GameKit::AwsApiInitializer::Shutdown(m_logCb, this);
+    Logging::Log(m_logCb, Level::Info, "~GameKitAccount()", this);
 }
 #pragma endregion
 
@@ -108,8 +109,16 @@ unsigned int GameKitAccount::Bootstrap()
         S3Model::CreateBucketOutcome createOutcome = m_s3Client->CreateBucket(createBucketRequest);
         if (!createOutcome.IsSuccess())
         {
-            // bucket creation failed
             Logging::Log(m_logCb, Level::Error, createOutcome.GetError().GetMessage().c_str());
+
+            if (createOutcome.GetError().GetExceptionName() == TOO_MANY_BUCKETS_EXCEPTION_NAME)
+            {
+                // Bucket creation failed because the AWS account has too many buckets. To fix this S3 buckets can be deleted or
+                // the bucket limit can be increased. See https://docs.aws.amazon.com/AmazonS3/latest/userguide/BucketRestrictions.html.
+                return GAMEKIT_ERROR_BOOTSTRAP_TOO_MANY_BUCKETS;
+            }
+
+            // Bucket creation failed for an unknown reason
             return GAMEKIT_ERROR_BOOTSTRAP_BUCKET_CREATION_FAILED;
         }
 
@@ -532,8 +541,14 @@ bool GameKitAccount::isFunctionsPathValid(TemplateType templateType)
     {
         funcsPath = m_instanceFunctionsPath;
     }
+    
+    bool funcsPathExists = fs::exists(funcsPath);
+    bool funcsPathIsDir = fs::is_directory(funcsPath);
 
-    return fs::exists(funcsPath) && fs::is_directory(funcsPath);
+    std::stringstream ss;
+    ss << funcsPath << " exists: " << funcsPathExists << ", is dir: " << funcsPathIsDir;
+    Logger::Logging::Log(m_logCb, Level::Verbose, ss.str().c_str());
+    return funcsPathExists && funcsPathIsDir;
 }
 
 bool GameKitAccount::isCloudFormationPathValid(TemplateType templateType)

@@ -1,10 +1,14 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "custom_test_flags.h"
 #include "simple_integration_test.h"
 
 class GameKit::Tests::SimpleIntegration::SimpleIntegrationTestFixture : public ::testing::Test
 {
+protected:
+    Aws::UniquePtr<GameKit::GameKitAccount> gamekitAccountInstance = nullptr;
+
 public:
     SimpleIntegrationTestFixture()
     {}
@@ -27,6 +31,8 @@ public:
 
     void TearDown()
     {
+        gamekitAccountInstance.reset();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 

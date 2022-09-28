@@ -2,15 +2,17 @@
 #include "../core/test_stack.h"
 #include "../core/test_log.h"
 
+#define CLIENT_CONFIG_FILE "../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml"
+
 class GameKit::Tests::GameKitSessionManager::GameKitAuthenticationExportsTestFixture : public ::testing::Test
 {
 protected:
     TestStackInitializer testStackInitializer;
     typedef TestLog<GameKitAuthenticationExportsTestFixture> TestLogger;
 
-    void* createSessionManagerInstance()
+    GAMEKIT_SESSIONMANAGER_INSTANCE_HANDLE createSessionManagerInstance()
     {
-        return GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log);
+        return GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, TestLogger::Log);
     }
 
 public:
@@ -24,13 +26,13 @@ public:
 
     void SetUp()
     {
-        TestLogger::Clear();
         testStackInitializer.Initialize();
     }
 
     void TearDown()
     {
-        testStackInitializer.Cleanup();
+        testStackInitializer.CleanupAndLog<TestLogger>();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 using namespace GameKit::Tests::GameKitSessionManager;
@@ -96,6 +98,8 @@ TEST_F(GameKitAuthenticationExportsTestFixture, SettingsLoaded_ReloadSettings_Em
     ASSERT_EQ(0, sessionManager->GetClientSettings().count(GameKit::ClientSettings::Authentication::SETTINGS_USER_POOL_CLIENT_ID));
     ASSERT_EQ(0, sessionManager->GetClientSettings().count(GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_API_GATEWAY_BASE_URL));
     ASSERT_EQ(0, sessionManager->GetClientSettings().count(GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_REGION));
+
+    GameKitSessionManagerInstanceRelease(sessionManagerHandle);
 }
 
 TEST_F(GameKitAuthenticationExportsTestFixture, SettingsLoaded_ReloadSettings_From_File_Contents)
@@ -111,6 +115,8 @@ TEST_F(GameKitAuthenticationExportsTestFixture, SettingsLoaded_ReloadSettings_Fr
     ASSERT_EQ("TestClientID", sessionManager->GetClientSettings().at(GameKit::ClientSettings::Authentication::SETTINGS_USER_POOL_CLIENT_ID));
     ASSERT_EQ("TestGatewayURL", sessionManager->GetClientSettings().at(GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_API_GATEWAY_BASE_URL));
     ASSERT_EQ("us-west-3", sessionManager->GetClientSettings().at(GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_REGION));
+
+    GameKitSessionManagerInstanceRelease(sessionManagerHandle);
 }
 
 TEST_F(GameKitAuthenticationExportsTestFixture, SetToken)
@@ -126,6 +132,8 @@ TEST_F(GameKitAuthenticationExportsTestFixture, SetToken)
     ASSERT_EQ("TestClientID", sessionManager->GetClientSettings().at(GameKit::ClientSettings::Authentication::SETTINGS_USER_POOL_CLIENT_ID));
     ASSERT_EQ("TestGatewayURL", sessionManager->GetClientSettings().at(GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_API_GATEWAY_BASE_URL));
     ASSERT_EQ("us-west-3", sessionManager->GetClientSettings().at(GameKit::ClientSettings::Authentication::SETTINGS_IDENTITY_REGION));
+
+    GameKitSessionManagerInstanceRelease(sessionManagerHandle);
 }
 
 TEST_F(GameKitAuthenticationExportsTestFixture, KeyDoesNotExist_SetToken_Success)
@@ -137,6 +145,7 @@ TEST_F(GameKitAuthenticationExportsTestFixture, KeyDoesNotExist_SetToken_Success
     // act
     sessionManager->SetToken(GameKit::TokenType::AccessToken, "abc");
     auto token = sessionManager->GetToken(GameKit::TokenType::AccessToken);
+    GameKitSessionManagerInstanceRelease(sessionManagerHandle);
 
     // assert
     ASSERT_EQ("abc", token);
@@ -153,6 +162,7 @@ TEST_F(GameKitAuthenticationExportsTestFixture, KeyExists_SetToken_Success)
     sessionManager->SetToken(GameKit::TokenType::AccessToken, "xyz");
 
     auto token = sessionManager->GetToken(GameKit::TokenType::AccessToken);
+    GameKitSessionManagerInstanceRelease(sessionManagerHandle);
 
     // assert
     ASSERT_EQ("xyz", token);

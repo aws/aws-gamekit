@@ -24,11 +24,13 @@ using namespace GameKit;
 GameKitDeploymentOrchestrator::GameKitDeploymentOrchestrator(const std::string& baseTemplatesFolder, const std::string& instanceFilesFolder, const std::string& sourceEngine, const std::string& pluginVersion, FuncLogCallback logCb) :
     m_baseTemplatesFolder(baseTemplatesFolder), m_instanceFilesFolder(instanceFilesFolder), m_logCb(logCb), m_sourceEngine(sourceEngine), m_pluginVersion(pluginVersion)
 {
+    Logging::Log(m_logCb, Level::Info, "GameKitDeploymentOrchestrator()", this);
     AwsApiInitializer::Initialize(m_logCb, this);
 }
 
 GameKitDeploymentOrchestrator::~GameKitDeploymentOrchestrator()
 {
+    Logging::Log(m_logCb, Level::Info, "~GameKitDeploymentOrchestrator()", this);
     AwsApiInitializer::Shutdown(m_logCb, this);
 }
 #pragma endregion
@@ -170,6 +172,13 @@ bool GameKitDeploymentOrchestrator::isDeleteStateValid(FeatureType feature, DISP
     if (m_deleteEnabledStatuses.find(featureStatus) == m_deleteEnabledStatuses.end())
     {
         return invokeCanExecuteDeploymentActionCallback(receiver, callback, feature, false, DeploymentActionBlockedReason::FeatureMustBeCreated);
+    }
+
+    // If the main stack is not in a usable state, disable delete as a downstream feature could be preparing to be deployed.
+    const FeatureStatus mainStackStatus = GetFeatureStatus(FeatureType::Main);
+    if (m_featureUsableStatuses.find(mainStackStatus) == m_featureUsableStatuses.end())
+    {
+        return invokeCanExecuteDeploymentActionCallback(receiver, callback, feature, false, DeploymentActionBlockedReason::MainStackNotReady);
     }
 
     // Ensure no features are currently consuming this feature

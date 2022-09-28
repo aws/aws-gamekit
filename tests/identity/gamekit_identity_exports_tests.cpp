@@ -25,6 +25,8 @@ using namespace Aws::CognitoIdentityProvider::Model;
 using namespace GameKit::Tests::IdentityExports;
 using namespace testing;
 
+#define CLIENT_CONFIG_FILE "../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml"
+
 void responseCallback(DISPATCH_RECEIVER_HANDLE receiver, const GameKit::GetUserResponse* responsePayload)
 {
     ((GameKit::Tests::IdentityExports::Dispatcher*) receiver)->CallbackHandler(responsePayload);
@@ -45,30 +47,37 @@ GameKitIdentityExportsTestFixture::~GameKitIdentityExportsTestFixture()
 
 void GameKitIdentityExportsTestFixture::SetUp()
 {
-    ::testing::internal::CaptureStdout();
-
-    testStack.Initialize();
+    testStackInitializer.Initialize();
 }
 
 void GameKitIdentityExportsTestFixture::TearDown()
 {
-    std::string capturedStdout = ::testing::internal::GetCapturedStdout().c_str();
+    if (testSessionManager != nullptr)
+    {
+        GameKitSessionManagerInstanceRelease(testSessionManager);
+        testSessionManager = nullptr;
+    }
 
-    testStack.Cleanup();
+    ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
+
+    testStackInitializer.CleanupAndLog<TestLogger>();
+    TestExecutionUtils::AbortOnFailureIfEnabled();
 }
 
 void* GameKitIdentityExportsTestFixture::createIdentityInstance()
 {
-    void* sessMgr = GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log);
+    void* sessMgr = GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, TestLogger::Log);
     (static_cast<GameKit::Authentication::GameKitSessionManager*>(sessMgr))->SetToken(TokenType::AccessToken, "test_token");
     (static_cast<GameKit::Authentication::GameKitSessionManager*>(sessMgr))->SetToken(TokenType::IdToken, "test_token");
 
+    testSessionManager = sessMgr;
     return GameKitIdentityInstanceCreateWithSessionManager(sessMgr, TestLogger::Log);
 }
 
 void* GameKitIdentityExportsTestFixture::createIdentityInstanceWithNoSessionManagerTokens()
 {
-    void* sessMgr = GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log);
+    void* sessMgr = GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, TestLogger::Log);
+    testSessionManager = sessMgr;
 
     return GameKitIdentityInstanceCreateWithSessionManager(sessMgr, TestLogger::Log);
 }
@@ -393,7 +402,7 @@ TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityLogout_NotLoggedIn)
     unsigned int result = GameKitIdentityLogout(instance);
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_ERROR_LOGIN_FAILED, result);
+    ASSERT_EQ(GameKit::GAMEKIT_ERROR_LOGOUT_FAILED, result);
 
     GameKitIdentityInstanceRelease(instance);
 }
@@ -675,7 +684,8 @@ TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityInstanceRelease_Suc
 TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityInstanceRelease_SessionManager_Persists)
 {
     // arrange
-    void* sessMgr = GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log);
+    void* sessMgr = GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, TestLogger::Log);
+    testSessionManager = sessMgr; // assign it to the class instance so that it is released after the test completes
 
     void* identityInstance = GameKitIdentityInstanceCreateWithSessionManager(sessMgr, TestLogger::Log);
 
@@ -689,8 +699,9 @@ TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityInstanceRelease_Ses
 TEST_F(GameKitIdentityExportsTestFixture, TestGameKitIdentityGetFbLoginUrl_Success)
 {
     // arrange
-    void* sessMgr = GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log);
+    void* sessMgr = GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, TestLogger::Log);
     void* identityInstance = GameKitIdentityInstanceCreateWithSessionManager(sessMgr, TestLogger::Log);
+    testSessionManager = sessMgr;
 
     // TODO:: Mock HttpClient
     //// act

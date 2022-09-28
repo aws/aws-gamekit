@@ -30,13 +30,12 @@ public:
 
     void SetUp()
     {
+        testStack.Initialize();
+
         // In case a previous test crashed we must clear the file before each test
         std::ofstream ofs;
         ofs.open(TEST_CREDENTIALS_FILE_LOCATION, std::ofstream::out | std::ofstream::trunc);
         ofs.close();
-
-        TestLogger::Clear();
-        testStack.Initialize();
     }
 
     void TearDown()
@@ -49,14 +48,15 @@ public:
         ofs.close();
 
         remove(instance->GetSettingsFilePath().c_str());
-        testStack.Cleanup();
+        GameKitSettingsInstanceRelease(instance);
+        testStack.CleanupAndLog<TestLogger>();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 
     void* createSettingsInstance()
     {
         return GameKitSettingsInstanceCreate("../core/test_data/sampleplugin/instance", "1.0.0", "testgame", "dev", TestLogger::Log);
     }
-
 };
 
 using namespace GameKit::Tests::GameKitSettingsExport;

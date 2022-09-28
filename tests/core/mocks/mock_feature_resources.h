@@ -17,7 +17,7 @@ class MockGameKitFeatureResources : public GameKitFeatureResources
 public:
     MockGameKitFeatureResources(const AccountInfo accountInfo, const AccountCredentials credentials, FeatureType featureType, FuncLogCallback logCb)
         : GameKitFeatureResources(accountInfo, credentials, featureType, logCb) {}
-    ~MockGameKitFeatureResources() {}
+    virtual ~MockGameKitFeatureResources() {}
 
     MOCK_METHOD(bool, IsCloudFormationInstanceTemplatePresent, (), (override, const));
     MOCK_METHOD(bool, AreLayerInstancesPresent, (), (override, const));

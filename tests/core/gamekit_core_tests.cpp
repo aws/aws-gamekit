@@ -1,14 +1,18 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+// GameKit
+#include "aws/gamekit/core/logging.h"
+#include "custom_test_flags.h"
+#include "test_log.h"
+
+// Gtest
 #include <gtest/gtest.h>
 
+// Standard Library
 #include <string>
 #include <vector>
 #include <algorithm>
-
-#include "aws/gamekit/core/logging.h"
-#include "test_log.h"
 
 using namespace GameKit::Logger;
 
@@ -33,6 +37,10 @@ public:
     void TearDown()
     {
         instance = nullptr;
+
+        TestLogger::DumpToConsoleIfTestFailed();
+        TestLogger::Clear();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 
     ~LoggingTestFixture()

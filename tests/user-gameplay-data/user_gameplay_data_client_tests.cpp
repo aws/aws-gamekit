@@ -31,8 +31,7 @@ UserGameplayDataClientTestFixture::~UserGameplayDataClientTestFixture()
 
 void UserGameplayDataClientTestFixture::SetUp()
 {
-    testStack.Initialize();
-    TestLogger::Clear();
+    testStackInitializer.Initialize();
 
     authSetter = std::bind(&UserGameplayDataClientTestFixture::AuthSetter, this, std::placeholders::_1);
     retryLogic = std::make_shared<ConstantIntervalStrategy>();
@@ -40,9 +39,10 @@ void UserGameplayDataClientTestFixture::SetUp()
 
 void UserGameplayDataClientTestFixture::TearDown()
 {
-    testStack.Cleanup();
-
     remove(CACHE_BIN_FILE);
+
+    testStackInitializer.CleanupAndLog<TestLogger>();
+    TestExecutionUtils::AbortOnFailureIfEnabled();
 }
 
 void UserGameplayDataClientTestFixture::AuthSetter(std::shared_ptr<Aws::Http::HttpRequest> request)
@@ -331,7 +331,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_ClientOfflineThen
         false, "Foo", "", request, Aws::Http::HttpResponseCode(201), OPERATION_ATTEMPTS_NO_LIMIT,
         (CallbackContext)(&responseCode2), successCallback);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
 
     bool state_t_1 = networkState; // state should be healthy (true), as captured by callback
 
@@ -351,6 +351,7 @@ TEST_F(UserGameplayDataClientTestFixture, MakeMultipleRequests_ClientOfflineThen
     ASSERT_TRUE(state_t_1);
 
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
+    mockHttpClient.reset();
 }
 
 TEST_F(UserGameplayDataClientTestFixture, MakeOperation_BinarySerializeDeserialize_OperationsMatch)
@@ -403,6 +404,8 @@ TEST_F(UserGameplayDataClientTestFixture, MakeOperation_BinarySerializeDeseriali
     ASSERT_STREQ(operation->OperationUniqueKey.c_str(), deserialized->OperationUniqueKey.c_str());
     ASSERT_EQ(operation->Timestamp, deserialized->Timestamp);
     ASSERT_EQ(operation->Type, deserialized->Type);
+
+    remove(SERIALIZATION_BIN_FILE);
 
     // Inner request serialization is tested in GameKitRequestSerializationTestFixture
 }

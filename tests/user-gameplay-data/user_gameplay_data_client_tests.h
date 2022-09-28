@@ -23,7 +23,7 @@ namespace GameKit
             std::function<void(std::shared_ptr<Aws::Http::HttpRequest>)> authSetter;
             std::shared_ptr<GameKit::Utils::HttpClient::IRetryStrategy> retryLogic;
             typedef TestLog<UserGameplayDataClientTestFixture> TestLogger;
-            TestStackInitializer testStack;
+            TestStackInitializer testStackInitializer;
 
         public:
             UserGameplayDataClientTestFixture();

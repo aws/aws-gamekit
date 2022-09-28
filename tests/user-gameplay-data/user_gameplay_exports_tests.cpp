@@ -16,6 +16,7 @@ using namespace ::testing;
 
 #define TEST_ID_TOKEN   "test_token123"
 #define TEST_AUTH_HEADER    "Bearer test_token123"
+#define CLIENT_CONFIG_FILE "../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml"
 
 void* GameKitUserGameplayDataExportsTestFixture::CreateDefault()
 {
@@ -36,10 +37,9 @@ bool GameKitUserGameplayDataExportsTestFixture::ValidateItemKeysProxy(const char
 
 void GameKitUserGameplayDataExportsTestFixture::SetUp()
 {
-    TestLogger::Clear();
-    testStack.Initialize();
+    testStackInitializer.Initialize();
 
-    sessionManagerInstance = GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", nullptr);
+    sessionManagerInstance = GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, nullptr);
     static_cast<Authentication::GameKitSessionManager*>(sessionManagerInstance)->SetToken(TokenType::IdToken, TEST_ID_TOKEN);
 }
 
@@ -47,7 +47,8 @@ void GameKitUserGameplayDataExportsTestFixture::TearDown()
 {
     GameKitSessionManagerInstanceRelease(sessionManagerInstance);
 
-    testStack.Cleanup();
+    testStackInitializer.CleanupAndLog<TestLogger>();
+    TestExecutionUtils::AbortOnFailureIfEnabled();
 }
 
 TEST_F(GameKitUserGameplayDataExportsTestFixture, TestCreate_Success)

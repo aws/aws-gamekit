@@ -31,6 +31,7 @@ public:
     void TearDown()
     {
         Aws::Utils::Crypto::CleanupCrypto();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 

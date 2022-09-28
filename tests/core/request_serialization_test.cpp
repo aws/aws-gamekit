@@ -28,15 +28,15 @@ GameKitRequestSerializationTestFixture::~GameKitRequestSerializationTestFixture(
 
 void GameKitRequestSerializationTestFixture::SetUp()
 {
-    TestLogger::Clear();
     testStack.Initialize();
 }
 
 void GameKitRequestSerializationTestFixture::TearDown()
 {
-    testStack.Cleanup();
-
     remove(SERIALIZATION_BIN_FILE);
+
+    testStack.CleanupAndLog<TestLogger>();
+    TestExecutionUtils::AbortOnFailureIfEnabled();
 }
 
 TEST_F(GameKitRequestSerializationTestFixture, HttpRequest_BinarySerializeDeserialize_RequestsMatch)

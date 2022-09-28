@@ -4,6 +4,7 @@
 #pragma once
 
 #include "../core/test_common.h"
+#include <aws/gamekit/authentication/exports.h>
 #include <aws/gamekit/identity/exports.h>
 #include "aws/gamekit/identity/gamekit_identity.h"
 #include "aws/gamekit/identity/facebook_identity_provider.h"
@@ -17,7 +18,6 @@ namespace GameKit
     {
         namespace IdentityExports
         {
-
             class Dispatcher
             {
             public:
@@ -45,13 +45,14 @@ namespace GameKit
             protected:
                 typedef TestLog<GameKitIdentityExportsTestFixture> TestLogger;
 
-                TestStackInitializer testStack;
+                TestStackInitializer testStackInitializer;
 
                 void* createIdentityInstance();
                 void* createIdentityInstanceWithNoSessionManagerTokens();
                 void setIdentityMocks(void* instance);
                 Aws::UniquePtr<GameKit::Mocks::MockCognitoIdentityProviderClient> cognitoMock;
                 std::shared_ptr<MockHttpClient> mockHttpClient;
+                GAMEKIT_SESSIONMANAGER_INSTANCE_HANDLE testSessionManager = nullptr;
 
                 template <typename Result, typename Outcome>
                 Outcome SuccessOutcome()

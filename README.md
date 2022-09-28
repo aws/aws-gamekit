@@ -191,6 +191,7 @@ xcodebuild -parallelizeTargets -target install
     set BUILD_TYPE=Debug
     set ARCH=arm
     set PLATFORM=android
+    set ANDROID_ABI=armeabi-v7a
     ```
 
   * For Unreal, set:
@@ -219,7 +220,7 @@ xcodebuild -parallelizeTargets -target install
 4. Run CMake
 
     ```bat
-    cmake <YOUR_DEVELOPMENT_PATH>\aws-sdk-cpp -DNDK_DIR=%NDKROOT% -DBUILD_ONLY="core;apigateway;cloudformation;cognito-idp;lambda;s3;ssm;secretsmanager;sts" -DBUILD_SHARED_LIBS=%BUILD_SHARED% -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCUSTOM_MEMORY_MANAGEMENT=ON -DTARGET_ARCH=ANDROID -DANDROID_NATIVE_API_LEVEL=%ANDROID_API_LEVEL% -DANDROID_BUILD_CURL=1 -DANDROID_BUILD_OPENSSL=1 -DANDROID_BUILD_ZLIB=1 -DBUILD_ZLIB=1 -DCMAKE_INSTALL_PREFIX=<YOUR_DEVELOPMENT_PATH>\AWSSDK_android\install\%ARCH%\%PLATFORM%\%BUILD_TYPE% -G "Ninja" -DANDROID_STL=%STL_TYPE% -DANDROID_PLATFORM=android-%ANDROID_API_LEVEL% -DENABLE_TESTING=NO
+    cmake <YOUR_DEVELOPMENT_PATH>\aws-sdk-cpp -DNDK_DIR=%NDKROOT% -DBUILD_ONLY="core;apigateway;cloudformation;cognito-idp;lambda;s3;ssm;secretsmanager;sts" -DBUILD_SHARED_LIBS=%BUILD_SHARED% -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCUSTOM_MEMORY_MANAGEMENT=ON -DTARGET_ARCH=ANDROID -DANDROID_ABI=%ANDROID_ABI% -DANDROID_NATIVE_API_LEVEL=%ANDROID_API_LEVEL% -DANDROID_BUILD_CURL=1 -DANDROID_BUILD_OPENSSL=1 -DANDROID_BUILD_ZLIB=1 -DBUILD_ZLIB=1 -DCMAKE_INSTALL_PREFIX=<YOUR_DEVELOPMENT_PATH>\AWSSDK_android\install\%ARCH%\%PLATFORM%\%BUILD_TYPE% -G "Ninja" -DANDROID_STL=%STL_TYPE% -DANDROID_PLATFORM=android-%ANDROID_API_LEVEL% -DENABLE_TESTING=NO
     ```
 
 5. Build and install
@@ -276,6 +277,7 @@ AWS GameKit uses a fixed version of yaml-cpp: commit `2f899756`
     set BUILD_TYPE=Debug
     set ARCH=arm
     set PLATFORM=android
+    set ANDROID_ABI=armeabi-v7a
     ```
 
   * For Unreal, set:
@@ -296,7 +298,7 @@ AWS GameKit uses a fixed version of yaml-cpp: commit `2f899756`
 1. `cd build_android`
 
     ```bat
-    cmake .. -DCMAKE_TOOLCHAIN_FILE=%NDKROOT%\build\cmake\android.toolchain.cmake -DYAML_BUILD_SHARED_LIBS=%BUILD_SHARED% -DANDROID_ABI=armeabi-v7a -DANDROID_NATIVE_API_LEVEL=%ANDROID_API_LEVEL% -DCMAKE_INSTALL_PREFIX=install\%BUILD_TYPE% -G "Ninja" -DANDROID_STL=%STL_TYPE% -DBUILD_TESTING=OFF
+    cmake .. -DCMAKE_TOOLCHAIN_FILE=%NDKROOT%\build\cmake\android.toolchain.cmake -DYAML_BUILD_SHARED_LIBS=%BUILD_SHARED% -DANDROID_ABI=%ANDROID_ABI% -DANDROID_NATIVE_API_LEVEL=%ANDROID_API_LEVEL% -DCMAKE_INSTALL_PREFIX=install\%BUILD_TYPE% -G "Ninja" -DANDROID_STL=%STL_TYPE% -DBUILD_TESTING=OFF
     cmake --build .
     cmake --build . --target install
     ```
@@ -333,6 +335,7 @@ AWS GameKit uses a fixed version of yaml-cpp: commit `2f899756`
     set BUILD_TYPE=Debug
     set ARCH=arm
     set PLATFORM=android
+    set ANDROID_ABI=armeabi-v7a
     ```
 
   * For Unreal, set:
@@ -350,11 +353,10 @@ AWS GameKit uses a fixed version of yaml-cpp: commit `2f899756`
 4. `cd build_android`
 
     ```bat
-    cmake .. -DBUILD_SHARED_LIBS=ON -Dgtest_force_shared_crt=ON -DCMAKE_INSTALL_PREFIX=install\%BUILD_TYPE% -DGTEST_CREATE_SHARED_LIBRARY=1 -DCMAKE_TOOLCHAIN_FILE=%NDKROOT%\build\cmake\android.toolchain.cmake -DANDROID_ABI=armeabi-v7a -DANDROID_NATIVE_API_LEVEL=%ANDROID_API_LEVEL%  -G "Ninja" -DANDROID_STL=%STL_TYPE%
+    cmake .. -DBUILD_SHARED_LIBS=ON -Dgtest_force_shared_crt=ON -DCMAKE_INSTALL_PREFIX=install\%BUILD_TYPE% -DGTEST_CREATE_SHARED_LIBRARY=1 -DCMAKE_TOOLCHAIN_FILE=%NDKROOT%\build\cmake\android.toolchain.cmake -DANDROID_ABI=%ANDROID_ABI% -DANDROID_NATIVE_API_LEVEL=%ANDROID_API_LEVEL% -G "Ninja" -DANDROID_STL=%STL_TYPE%
     cmake --build .
     cmake --build . --target install
     ```
-
 
 ### Boost
 

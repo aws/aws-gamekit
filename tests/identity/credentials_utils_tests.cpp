@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "credentials_utils_tests.h"
+#include "../core/custom_test_flags.h"
 
 class GameKit::Tests::CredentialsUtils::GameKitUtilsCredentialsTestFixture : public ::testing::Test
 {
@@ -20,6 +21,7 @@ public:
 
     void TearDown()
     {
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 

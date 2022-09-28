@@ -30,6 +30,7 @@ public:
         gamekitZipperInstance->CloseZipFile();
         gamekitZipperInstance.reset();
         remove("../core/test_data/testFiles/zipperTests/testZip.zip");
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 

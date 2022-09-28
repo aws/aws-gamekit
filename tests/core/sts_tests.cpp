@@ -19,13 +19,13 @@ using namespace ::testing;
 
 void STSUtilsTestFixture::SetUp()
 {
-    TestLogger::Clear();
     testStack.Initialize();
 }
 
 void STSUtilsTestFixture::TearDown()
 {
-    testStack.Cleanup();
+    testStack.CleanupAndLog<TestLogger>();
+    TestExecutionUtils::AbortOnFailureIfEnabled();
 }
 
 TEST_F(STSUtilsTestFixture, ValidSTSClient_TestGetAccountId_ApiCalled)

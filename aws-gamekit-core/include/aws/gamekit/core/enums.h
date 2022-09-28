@@ -17,7 +17,7 @@ namespace GameKit
     enum class FederatedIdentityProvider { Facebook = 0, Google = 1, Apple = 2, Amazon = 3 };
     enum class FeatureStatus { Deployed = 0, Undeployed, Error, RollbackComplete, Running, GeneratingTemplates, UploadingDashboards, UploadingLayers, UploadingFunctions, DeployingResources, DeletingResources, Unknown };
     enum class FeatureStatusSummary { Deployed = 0, Undeployed, Error, Running, Unknown };
-    enum class DeploymentActionBlockedReason { NotBlocked = 0, FeatureMustBeCreated, FeatureMustBeDeleted, FeatureStatusIsUnknown, OngoingDeployments, DependenciesMustBeCreated, DependenciesMustBeDeleted, DependenciesStatusIsInvalid, CredentialsInvalid };
+    enum class DeploymentActionBlockedReason { NotBlocked = 0, FeatureMustBeCreated, FeatureMustBeDeleted, FeatureStatusIsUnknown, OngoingDeployments, DependenciesMustBeCreated, DependenciesMustBeDeleted, DependenciesStatusIsInvalid, CredentialsInvalid, MainStackNotReady };
 
     inline std::string GetFeatureStatusString(FeatureStatus status)
     {

@@ -13,8 +13,6 @@ using namespace testing;
 
 void GameKitDeploymentOrchestratorTestFixture::SetUp()
 {
-    ::testing::internal::CaptureStdout();
-    TestLogger::Clear();
     testStack.Initialize();
 
     deploymentOrchestrator = std::make_unique<TestableGameKitDeploymentOrchestrator>(BASE_TEMPLATES_FOLDER, INSTANCE_FILES_FOLDER, UNKNOWN, UNKNOWN, TestLogger::Log);
@@ -39,17 +37,19 @@ void GameKitDeploymentOrchestratorTestFixture::SetUp()
 
 void GameKitDeploymentOrchestratorTestFixture::TearDown()
 {
-    std::string capturedStdout = ::testing::internal::GetCapturedStdout();
-    
-    testStack.Cleanup();
-
     // Verify expectations on all feature resource mocks
-    for (const std::pair<FeatureType, std::shared_ptr<GameKitFeatureResources>>& featureResourceMock : featureResourcesMocks)
+    for (std::pair<const FeatureType, std::shared_ptr<GameKitFeatureResources>> featureResourceMock : featureResourcesMocks)
     {
         ASSERT_TRUE(Mock::VerifyAndClearExpectations(featureResourceMock.second.get()));
     }
+    deploymentOrchestrator.reset();
+    featureResourcesMocks.clear();
 
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(accountMock.get()));
+
+    accountMock.reset();
+    testStack.CleanupAndLog<TestLogger>();
+    TestExecutionUtils::AbortOnFailureIfEnabled();
 }
 
 std::shared_ptr<MockGameKitFeatureResources> GameKitDeploymentOrchestratorTestFixture::getFeatureResourcesMock(FeatureType featureType)
@@ -70,7 +70,7 @@ void GameKitDeploymentOrchestratorTestFixture::setUpFeatureForDeployment(Feature
         
         if (!shouldInstanceFilesExist)
         {
-            EXPECT_CALL(*featureResources, SaveCloudFormationInstance()).WillOnce(Return(GAMEKIT_SUCCESS));
+            EXPECT_CALL(*featureResources, SaveCloudFormationInstance(_, _)).WillOnce(Return(GAMEKIT_SUCCESS));
             EXPECT_CALL(*featureResources, SaveLayerInstances()).WillOnce(Return(GAMEKIT_SUCCESS));
             EXPECT_CALL(*featureResources, SaveFunctionInstances()).WillOnce(Return(GAMEKIT_SUCCESS));
         }
@@ -681,8 +681,8 @@ TEST_F(GameKitDeploymentOrchestratorTestFixture, GivenNoInstanceFiles_CreateFeat
         EXPECT_CALL(*featureResources, GetCurrentStackStatus()).WillOnce(Return("UNDEPLOYED"));
     }
 
-    setUpFeatureForDeployment(FeatureType::Main, false, false);
-    setUpFeatureForDeployment(FeatureType::Identity, false, false);
+    setUpFeatureForDeployment(FeatureType::Main, true, false);
+    setUpFeatureForDeployment(FeatureType::Identity, true, false);
 
     EXPECT_CALL(*accountMock, DeployApiGatewayStage()).Times(2);
 

@@ -6,13 +6,16 @@
 #include "gamekit_core_exports_tests.h"
 #include "test_stack.h"
 #include "test_log.h"
+#include "custom_test_flags.h"
 
 using ::testing::Action;
+
+#define INSTANCE_FILES_DIR "../core/test_data/sampleplugin/instance/testgame/dev/uswe2"
 
 class GameKit::Tests::CoreExports::GameKitCoreExportsTestFixture : public ::testing::Test
 {
 protected:
-    TestStackInitializer testStack;
+    TestStackInitializer testStackInitializer;
     typedef TestLog<GameKitCoreExportsTestFixture> TestLogger;
 
 public:
@@ -26,8 +29,7 @@ public:
 
     void SetUp()
     {
-        TestLogger::Clear();
-        testStack.Initialize();
+        testStackInitializer.Initialize();
     }
 
     void TearDown()
@@ -38,17 +40,17 @@ public:
         coreSecretsMock.release();
         coreApigwMock.release();
 
-        testStack.Cleanup();
-        remove(DUMMY_INSTANCE_PATH);
+        testStackInitializer.CleanupAndLog<TestLogger>();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 
-    void* createAccountInstance()
+    GAMEKIT_ACCOUNT_INSTANCE_HANDLE createAccountInstance()
     {
         return GameKitAccountInstanceCreateWithRootPaths(GameKit::AccountInfo{ "dev", "123456789012", "TestCompany", "testgame" },
             GameKit::AccountCredentials{ "us-west-2", "AKIA...", "naRg8H..." }, "../core/test_data/sampleplugin/instance", "../core/test_data/sampleplugin/base", TestLogger::Log);
     }
 
-    void* createFeatureResourceInstance(GameKit::FeatureType featureType)
+    GAMEKIT_FEATURERESOURCES_INSTANCE_HANDLE createFeatureResourceInstance(GameKit::FeatureType featureType)
     {
         return GameKitResourcesInstanceCreateWithRootPaths(GameKit::AccountInfo{ "dev", "123456789012", "TestCompany", "testgame" },
             GameKit::AccountCredentials{ "us-west-2", "AKIA...", "naRg8H..." }, featureType, "../core/test_data/sampleplugin/instance", "../core/test_data/sampleplugin/base", TestLogger::Log);
@@ -177,6 +179,8 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountInstanceHasValidCredenti
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreS3Mock.get()));
 
     GameKitAccountInstanceRelease(acctInstance);
+    coreS3Mock.reset();
+    coreCfnMock.reset();
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitGetAccountId_Error)
@@ -231,6 +235,8 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountInstanceBootstrap_Succes
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreS3Mock.get()));
 
     GameKitAccountInstanceRelease(acctInstance);
+    coreS3Mock.reset();
+    coreCfnMock.reset();
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountSaveSecret_Success)
@@ -260,6 +266,8 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountSaveSecret_Success)
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreSecretsMock.get()));
 
     GameKitAccountInstanceRelease(acctInstance);
+    coreSecretsMock.reset();
+    coreCfnMock.reset();
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountSaveFeatureInstanceTemplates_Success)
@@ -278,6 +286,10 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountSaveFeatureInstanceTempl
 
     // assert
     ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    coreCfnMock.reset();
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountUploadFunctions_Success)
@@ -304,15 +316,23 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountUploadFunctions_Success)
         .WillRepeatedly(Return(putObjOutcome));
 
     // act
-    auto result = GameKitAccountUploadFunctions(acctInstance);
+    unsigned int saveTemplatesResult = GameKitAccountSaveFeatureInstanceTemplates(acctInstance);
+    unsigned int uploadResult = GameKitAccountUploadFunctions(acctInstance);
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveTemplatesResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, uploadResult);
 
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreS3Mock.get()));
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreSsmMock.get()));
 
     GameKitAccountInstanceRelease(acctInstance);
+    coreS3Mock.reset();
+    coreSsmMock.reset();
+    coreCfnMock.reset();
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountCreateOrUpdateMainStack_Success)
 {
@@ -364,16 +384,22 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountCreateOrUpdateMainStack_
         .Times(3);
 
     // act
-    auto result = GameKitAccountCreateOrUpdateMainStack(acctInstance);
+    unsigned int saveTemplatesResult = GameKitAccountSaveFeatureInstanceTemplates(acctInstance);
+    unsigned int createResult = GameKitAccountCreateOrUpdateMainStack(acctInstance);
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveTemplatesResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, createResult);
 
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreCfnMock.get()));
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreS3Mock.get()));
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreSsmMock.get()));
 
     GameKitAccountInstanceRelease(acctInstance);
+    coreCfnMock.reset();
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountCreateOrUpdateStacks_Success)
 {
@@ -434,16 +460,23 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountCreateOrUpdateStacks_Suc
         .Times(AtLeast(2));
 
     // act
-    auto result = GameKitAccountCreateOrUpdateStacks(acctInstance);
+    unsigned int saveTemplatesResult = GameKitAccountSaveFeatureInstanceTemplates(acctInstance);
+    unsigned int createResult = GameKitAccountCreateOrUpdateStacks(acctInstance);
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, createResult);
 
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreCfnMock.get()));
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreS3Mock.get()));
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreSsmMock.get()));
 
     GameKitAccountInstanceRelease(acctInstance);
+    coreSsmMock.reset();
+    coreS3Mock.reset();
+    coreCfnMock.reset();
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitFeatureResourceInstanceCreate_Success)
@@ -685,6 +718,8 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitAccountDeployApiGatewayStage_Su
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreCfnMock.get()));
 
     GameKitAccountInstanceRelease(acctInstance);
+    coreApigwMock.reset();
+    coreCfnMock.reset();
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitFeatureDescribeStackResources_Success)
@@ -738,6 +773,9 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesSaveCloudFormationInst
 
     // assert
     ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesSaveFunctionInstances_Success)
@@ -753,6 +791,9 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesSaveFunctionInstances_
 
     // assert
     ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesUploadFeatureFunctions_Success)
@@ -776,14 +817,19 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesUploadFeatureFunctions
         .WillRepeatedly(Return(putObjOutcome));
 
     // act
-    auto result = GameKitResourcesUploadFeatureFunctions(resourceInstance);
+    unsigned int saveResult = GameKitResourcesSaveFunctionInstances(resourceInstance);
+    unsigned int uploadResult = GameKitResourcesUploadFeatureFunctions(resourceInstance);
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, uploadResult);
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreSsmMock.get()));
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreS3Mock.get()));
 
     GameKitResourcesInstanceRelease(resourceInstance);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesIsCloudFormationInstanceTemplatePresent_False)
@@ -810,13 +856,18 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesIsCloudFormationInstan
     setResourceMocks(resourceInstance);
 
     // act
-    auto result = GameKitResourcesIsCloudFormationInstanceTemplatePresent(resourceInstance);
+    unsigned int saveResult = GameKitResourcesSaveCloudFormationInstance(resourceInstance);
+    unsigned int templatePresentResult = GameKitResourcesIsCloudFormationInstanceTemplatePresent(resourceInstance);
 
     // assert
-    ASSERT_TRUE(result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveResult);
+    ASSERT_TRUE(templatePresentResult);
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreCfnMock.get()));
 
     GameKitResourcesInstanceRelease(resourceInstance);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesGetDeployedCloudFormationTemplate_Fail)
@@ -873,6 +924,9 @@ TEST_F(GameKitCoreExportsTestFixture, TestGameKitResourcesGetDeployedCloudFormat
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(coreCfnMock.get()));
 
     GameKitResourcesInstanceRelease(resourceInstance);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 void GameKit::Tests::CoreExports::setAccountMocks(void* acctInstance)

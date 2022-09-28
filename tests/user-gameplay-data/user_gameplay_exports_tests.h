@@ -17,7 +17,7 @@ namespace GameKit
         protected:
             typedef TestLog<GameKitUserGameplayDataExportsTestFixture> TestLogger;
 
-            TestStackInitializer testStack;
+            TestStackInitializer testStackInitializer;
 
             void* sessionManagerInstance;
 

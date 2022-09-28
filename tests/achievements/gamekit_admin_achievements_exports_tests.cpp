@@ -15,6 +15,8 @@
 using namespace GameKit::Tests::AdminAchievementsExports;
 using namespace testing;
 
+#define CLIENT_CONFIG_FILE "../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml"
+
 void AdminAchievementsDispatchCallback(DISPATCH_RECEIVER_HANDLE receiver, const char* message)
 {
     ((GameKit::Tests::AdminAchievementsExports::Dispatcher*) receiver)->CallbackHandler(message);
@@ -37,26 +39,29 @@ GameKitAdminAchievementsExportsTestFixture::~GameKitAdminAchievementsExportsTest
 
 void GameKitAdminAchievementsExportsTestFixture::SetUp()
 {
-    TestLogger::Clear();
     testStackInitializer.Initialize();
-
-    ::testing::internal::CaptureStdout();
 }
 
 void GameKitAdminAchievementsExportsTestFixture::TearDown()
 {
-    testStackInitializer.Cleanup();
+    if (testSessionManager != nullptr)
+    {
+        GameKitSessionManagerInstanceRelease(testSessionManager);
+        testSessionManager = nullptr;
+    }
 
-    std::string capturedStdout = ::testing::internal::GetCapturedStdout().c_str();
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
+
+    testStackInitializer.CleanupAndLog<TestLogger>();
+    TestExecutionUtils::AbortOnFailureIfEnabled();
 }
 
-void* GameKitAdminAchievementsExportsTestFixture::createAchievementsInstance(bool setToken=true)
+void* GameKitAdminAchievementsExportsTestFixture::createAdminAchievementsInstance(bool setToken=true)
 {
-    void* sessMgr = GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log);
+    testSessionManager = GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, TestLogger::Log);
     if (setToken)
     {
-        (static_cast<GameKit::Authentication::GameKitSessionManager *>(sessMgr))->SetToken(TokenType::IdToken, "test_token");
+        (static_cast<GameKit::Authentication::GameKitSessionManager *>(testSessionManager))->SetToken(TokenType::IdToken, "test_token");
     }
 
     this->mockAccountCredentials = {
@@ -73,7 +78,7 @@ void* GameKitAdminAchievementsExportsTestFixture::createAchievementsInstance(boo
         "testgame"
     };
 
-    return GameKitAdminAchievementsInstanceCreateWithSessionManager(sessMgr, "../core/test_data/sampleplugin/base", this->mockAccountCredentials, this->mockAccountInfo, TestLogger::Log);
+    return GameKitAdminAchievementsInstanceCreateWithSessionManager(testSessionManager, "../core/test_data/sampleplugin/base", this->mockAccountCredentials, this->mockAccountInfo, TestLogger::Log);
 }
 
 void GameKitAdminAchievementsExportsTestFixture::setAchievementsMocks(void* instance)
@@ -101,7 +106,7 @@ void GameKitAdminAchievementsExportsTestFixture::setAchievementsAdminCredentials
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsInstanceCreate_Success)
 {
     // act
-    GameKit::GameKitFeature* achievementsInstance = (GameKit::GameKitFeature*)createAchievementsInstance();
+    GameKit::GameKitFeature* achievementsInstance = (GameKit::GameKitFeature*)createAdminAchievementsInstance();
 
     // assert
     ASSERT_NE(achievementsInstance, nullptr);
@@ -112,7 +117,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsInstan
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsInstanceRelease_Success)
 {
     // arrange
-    void* achievementsInstance = createAchievementsInstance();
+    void* achievementsInstance = createAdminAchievementsInstance();
 
     // act
     GameKitAdminAchievementsInstanceRelease(achievementsInstance);
@@ -121,7 +126,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsInstan
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsInstanceRelease_SessionManager_Persists)
 {
     // arrange
-    void* sessMgr = GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log);
+    testSessionManager = GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, TestLogger::Log);
 
     this->mockAccountCredentials = {
         "fake-region",
@@ -137,19 +142,19 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsInstan
         "testgame"
     };
 
-    void* achievementsInstance = GameKitAdminAchievementsInstanceCreateWithSessionManager(sessMgr, "../core/test_data/sampleplugin/instance/awsGameKitAwsRegionMappings.yml", this->mockAccountCredentials, this->mockAccountInfo, TestLogger::Log);
+    void* achievementsInstance = GameKitAdminAchievementsInstanceCreateWithSessionManager(testSessionManager, "../core/test_data/sampleplugin/instance/awsGameKitAwsRegionMappings.yml", this->mockAccountCredentials, this->mockAccountInfo, TestLogger::Log);
 
     // act
     GameKitAdminAchievementsInstanceRelease(achievementsInstance);
 
     // assert
-    ASSERT_NE(nullptr, sessMgr);
+    ASSERT_NE(nullptr, testSessionManager);
 }
 
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminListAchievements_Success)
 {
     // arrange
-    void* achievementsInstance = createAchievementsInstance();
+    void* achievementsInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsInstance);
 
     std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
@@ -173,7 +178,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminL
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminListAchievements_PaginatedSuccess)
 {
     // arrange
-    void* achievementsInstance = createAchievementsInstance();
+    void* achievementsInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsInstance);
 
     std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
@@ -202,7 +207,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminL
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminDeleteAchievements_Success)
 {
     // arrange
-    void* achievementsInstance = createAchievementsInstance();
+    void* achievementsInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsInstance);
 
     std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
@@ -226,7 +231,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminD
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminDeleteAchievements_EmptyArraySuccess)
 {
     // arrange
-    void* achievementsInstance = createAchievementsInstance();
+    void* achievementsInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsInstance);
 
     EXPECT_CALL(*this->mockHttpClient, MakeRequest(_, _, _))
@@ -244,7 +249,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminD
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminAddAchievements_Success)
 {
     // arrange
-    void* achievementsInstance = createAchievementsInstance();
+    void* achievementsInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsInstance);
 
     std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
@@ -274,7 +279,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminA
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminAddAchievements_EmptyArraySuccess)
 {
     // arrange
-    void* achievementsInstance = createAchievementsInstance();
+    void* achievementsInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsInstance);
 
     std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
@@ -293,7 +298,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminA
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminListAchievements_403_Recover)
 {
     // arrange
-    void* achievementsExportInstance = createAchievementsInstance();
+    void* achievementsExportInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsExportInstance);
 
     std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
@@ -337,7 +342,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminL
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminAddAchievements_403_Recover)
 {
     // arrange
-    void* achievementsExportInstance = createAchievementsInstance();
+    void* achievementsExportInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsExportInstance);
 
     std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
@@ -390,7 +395,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminA
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminDeleteAchievements_403_Recover)
 {
     // arrange
-    void* achievementsExportInstance = createAchievementsInstance();
+    void* achievementsExportInstance = createAdminAchievementsInstance();
     setAchievementsMocks(achievementsExportInstance);
 
     std::shared_ptr<FakeHttpResponse> response = std::make_shared<FakeHttpResponse>();
@@ -435,7 +440,7 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminD
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementIdValid_Success)
 {
     // arrange
-    void* achievementsExportInstance = createAchievementsInstance();
+    void* achievementsExportInstance = createAdminAchievementsInstance();
     bool pass = true;
     std::vector<std::string> testCases = {"abc", "ABC", "123", "a1B2", "a_b", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "a__________________b"};
 
@@ -445,12 +450,13 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementIdValid
     }
 
     ASSERT_TRUE(pass);
+    GameKitAdminAchievementsInstanceRelease(achievementsExportInstance);
 }
 
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementIdInValid_Fails)
 {
     // arrange
-    void* achievementsExportInstance = createAchievementsInstance();
+    void* achievementsExportInstance = createAdminAchievementsInstance();
     bool pass = true;
     std::vector<std::string> testCases = { "a", "A", "1", "_", "_abc", "abc_", "Aa&Bb", ""};
 
@@ -460,12 +466,13 @@ TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementIdInVal
     }
 
     ASSERT_TRUE(pass);
+    GameKitAdminAchievementsInstanceRelease(achievementsExportInstance);
 }
 
 TEST_F(GameKitAdminAchievementsExportsTestFixture, TestGameKitAchievementsAdminCredentialsChanged_Success)
 {
     // arrange
-    void* achievementsExportInstance = createAchievementsInstance();
+    void* achievementsExportInstance = createAdminAchievementsInstance();
 
     GameKit::AccountCredentials newCreds = {
         "us-west-2",

@@ -101,7 +101,7 @@ namespace GameKit
             protected:
                 typedef TestLog<GameKitGameSavingExportsTestFixture> TestLogger;
 
-                TestStackInitializer testStack;
+                TestStackInitializer testStackInitializer;
 
                 GameSavingResponseCallback slotCallback = [](DISPATCH_RECEIVER_HANDLE dispatchReceiver, const Slot* syncedSlots, unsigned int slotCount, bool complete, unsigned int callStatus)
                 {
@@ -144,7 +144,7 @@ namespace GameKit
                     return (unsigned int) boost::filesystem::file_size(filePath);
                 };
 
-                Authentication::GameKitSessionManager* sessionManager;
+                Authentication::GameKitSessionManager* sessionManager = nullptr;
                 std::shared_ptr<MockHttpClient> mockHttpClient;
                 Aws::Utils::DateTime local;
                 Aws::Utils::DateTime cloud;

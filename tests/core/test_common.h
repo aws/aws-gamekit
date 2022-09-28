@@ -22,3 +22,6 @@
 #include "mocks/mock_ssm_client.h"
 #include "mocks/mock_sts_client.h"
 #include "mocks/mock_s3_client.h"
+
+// Test settings
+#include "custom_test_flags.h"

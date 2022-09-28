@@ -6,11 +6,14 @@
 #include "gamekit_account_test.h"
 #include "test_stack.h"
 #include "test_log.h"
+#include "custom_test_flags.h"
+
+#define INSTANCE_FILES_DIR "../core/test_data/sampleplugin/instance/testgame/dev/uswe2"
 
 class GameKit::Tests::GameKitAccount::GameKitAccountTestFixture : public ::testing::Test
 {
 protected:
-    TestStackInitializer testStack;
+    TestStackInitializer testStackInitializer;
     typedef TestLog<GameKitAccountTestFixture> TestLogger;
 
 public:
@@ -22,8 +25,7 @@ public:
 
     void SetUp()
     {
-        TestLogger::Clear();
-        testStack.Initialize();
+        testStackInitializer.Initialize();
 
         testGamekitAccountInstance = Aws::MakeUnique<GameKit::GameKitAccount>(
             "testGamekitAccountInstance",
@@ -50,11 +52,13 @@ public:
     {
         testGamekitAccountInstance.reset();
 
-        testStack.Cleanup();
         ASSERT_TRUE(Mock::VerifyAndClearExpectations(accountS3Mock.get()));
         ASSERT_TRUE(Mock::VerifyAndClearExpectations(accountSsmMock.get()));
         ASSERT_TRUE(Mock::VerifyAndClearExpectations(accountCfnMock.get()));
         ASSERT_TRUE(Mock::VerifyAndClearExpectations(accountSecretsMock.get()));
+
+        testStackInitializer.CleanupAndLog<TestLogger>();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 
@@ -68,13 +72,13 @@ TEST_F(GameKitAccountTestFixture, BucketExists_TestHasbootstrapBucket_True)
     std::string name = "do-not-delete-gamekit-dev-uswe2-" + base36AccountId + "-testgame";
     bucket.SetName(ToAwsString(name));
     bucketResult.AddBuckets(bucket);
-    auto listOutcome = S3Model::ListBucketsOutcome(bucketResult);
+    const auto listOutcome = S3Model::ListBucketsOutcome(bucketResult);
     EXPECT_CALL(*accountS3Mock.get(), ListBuckets())
         .Times(1)
         .WillOnce(Return(listOutcome));
 
     // act
-    auto result = testGamekitAccountInstance->HasBootstrapBucket();
+    const auto result = testGamekitAccountInstance->HasBootstrapBucket();
 
     // assert
     ASSERT_TRUE(result);
@@ -102,8 +106,8 @@ TEST_F(GameKitAccountTestFixture, BucketNotExists_TestHasbootstrapBucket_False)
 TEST_F(GameKitAccountTestFixture, BucketNotExists_TestBootstrap_Create)
 {
     // arrange
-    S3Model::ListBucketsResult bucketResult;
-    auto listOutcome = S3Model::ListBucketsOutcome(bucketResult);
+    S3Model::ListBucketsResult listBucketResult;
+    auto listOutcome = S3Model::ListBucketsOutcome(listBucketResult);
     EXPECT_CALL(*accountS3Mock.get(), ListBuckets())
         .Times(1)
         .WillOnce(Return(listOutcome));
@@ -124,6 +128,31 @@ TEST_F(GameKitAccountTestFixture, BucketNotExists_TestBootstrap_Create)
     ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
 }
 
+TEST_F(GameKitAccountTestFixture, BucketNotExists_TestBootstrapTooManyBuckets_False)
+{
+    // arrange
+    S3Model::ListBucketsResult listBucketResult;
+    const auto listOutcome = S3Model::ListBucketsOutcome(listBucketResult);
+    EXPECT_CALL(*accountS3Mock.get(), ListBuckets())
+        .Times(1)
+        .WillOnce(Return(listOutcome));
+
+    S3Model::CreateBucketResult createBucketResult;
+    createBucketResult.SetLocation("testlocation");
+
+    // There is no S3 error type for TooManyBuckets so we check based on the name
+    Aws::S3::S3Error error = Aws::S3::S3Error(Aws::Client::AWSError<Aws::S3::S3Errors>(Aws::S3::S3Errors::UNKNOWN, "TooManyBuckets", "Too Many Buckets", false));
+    const auto createOutcome = S3Model::CreateBucketOutcome(error);
+    EXPECT_CALL(*accountS3Mock.get(), CreateBucket(_))
+        .Times(1)
+        .WillOnce(Return(createOutcome));
+
+    // act
+    const auto result = testGamekitAccountInstance->Bootstrap();
+
+    // assert
+    ASSERT_EQ(GameKit::GAMEKIT_ERROR_BOOTSTRAP_TOO_MANY_BUCKETS, result);
+}
 
 TEST_F(GameKitAccountTestFixture, MissingKeyAndSecret_TestHasValidCredentials_False)
 {
@@ -354,17 +383,22 @@ TEST_F(GameKitAccountTestFixture, ValidFunctionsPath_TestUploadFunctions_Uploade
         .WillRepeatedly(Return(putParamOutcome));
 
     S3Model::PutObjectResult putObjResult;
-    putObjResult.SetETag("abc-123");
+    putObjResult.SetETag("abc-1234");
     auto putObjOutcome = S3Model::PutObjectOutcome(putObjResult);
     EXPECT_CALL(*accountS3Mock.get(), PutObject(_))
         .Times(AtLeast(7)) // seven sample lambda functions in sample plugin directory
         .WillRepeatedly(Return(putObjOutcome));
 
     // act
-    auto result = testGamekitAccountInstance->UploadFunctions();
+    unsigned int saveTemplatesResult = testGamekitAccountInstance->SaveFeatureInstanceTemplates();
+    unsigned int uploadResult = testGamekitAccountInstance->UploadFunctions();
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveTemplatesResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, uploadResult);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitAccountTestFixture, MainStackDoesNotExist_TestCreateMainStack_Created)
@@ -405,10 +439,15 @@ TEST_F(GameKitAccountTestFixture, MainStackDoesNotExist_TestCreateMainStack_Crea
         .Times(3);
 
     // act
-    auto result = testGamekitAccountInstance->CreateOrUpdateMainStack();
+    unsigned int saveTemplatesResult = testGamekitAccountInstance->SaveFeatureInstanceTemplates();
+    unsigned int createResult = testGamekitAccountInstance->CreateOrUpdateMainStack();
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveTemplatesResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, createResult);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitAccountTestFixture, MainStackExists_TestUpdateMainStack_Updated)
@@ -454,10 +493,15 @@ TEST_F(GameKitAccountTestFixture, MainStackExists_TestUpdateMainStack_Updated)
         .Times(3);
 
     // act
-    auto result = testGamekitAccountInstance->CreateOrUpdateMainStack();
+    unsigned int saveTemplatesResult = testGamekitAccountInstance->SaveFeatureInstanceTemplates();
+    unsigned int updateResult = testGamekitAccountInstance->CreateOrUpdateMainStack();
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveTemplatesResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, updateResult);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitAccountTestFixture, FeatureStacksDoNotExist_TestCreateFeatureStacks_Created)
@@ -508,10 +552,15 @@ TEST_F(GameKitAccountTestFixture, FeatureStacksDoNotExist_TestCreateFeatureStack
         .Times(7);
 
     // act
-    auto result = testGamekitAccountInstance->CreateOrUpdateFeatureStacks();
+    unsigned int saveTemplatesResult = testGamekitAccountInstance->SaveFeatureInstanceTemplates();
+    unsigned int createResult = testGamekitAccountInstance->CreateOrUpdateFeatureStacks();
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveTemplatesResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, createResult);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitAccountTestFixture, FeatureStacksExist_TestUpdateFeatureStacks_Updated)
@@ -566,8 +615,13 @@ TEST_F(GameKitAccountTestFixture, FeatureStacksExist_TestUpdateFeatureStacks_Upd
         .Times(7);
 
     // act
-    auto result = testGamekitAccountInstance->CreateOrUpdateFeatureStacks();
+    unsigned int saveTemplatesResult = testGamekitAccountInstance->SaveFeatureInstanceTemplates();
+    unsigned int updateResult = testGamekitAccountInstance->CreateOrUpdateFeatureStacks();
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveTemplatesResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, updateResult);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }

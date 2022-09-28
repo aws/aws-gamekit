@@ -51,18 +51,22 @@ GameKitFeatureResources::~GameKitFeatureResources()
 
     if (!m_isUsingSharedS3Client)
     {
+        Logging::Log(m_logCb, Level::Info, "~GameKitFeatureResources() m_s3Client", this);
         delete(m_s3Client);
     }
     if (!m_isUsingSharedSSMClient)
     {
+        Logging::Log(m_logCb, Level::Info, "~GameKitFeatureResources() m_ssmClient", this);
         delete(m_ssmClient);
     }
     if (!m_isUsingSharedCfClient)
     {
+        Logging::Log(m_logCb, Level::Info, "~GameKitFeatureResources() m_cfClient", this);
         delete(m_cfClient);
     }
     if (!m_isUsingSharedLambdaClient)
     {
+        Logging::Log(m_logCb, Level::Info, "~GameKitFeatureResources() m_lambdaClient", this);
         delete(m_lambdaClient);
     }
 

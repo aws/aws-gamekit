@@ -18,7 +18,9 @@ void UserGameplayDataModelsTestFixture::SetUp()
 {}
 
 void UserGameplayDataModelsTestFixture::TearDown()
-{}
+{
+    TestExecutionUtils::AbortOnFailureIfEnabled();
+}
 
 TEST_F(UserGameplayDataModelsTestFixture, Test_SerializeToJson_UserGameplayDataBundle)
 {

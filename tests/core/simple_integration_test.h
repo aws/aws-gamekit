@@ -19,7 +19,6 @@ namespace GameKit
             namespace SSMModel = Aws::SSM::Model;
             namespace CfnModel = Aws::CloudFormation::Model;
 
-            Aws::UniquePtr<GameKit::GameKitAccount> gamekitAccountInstance = nullptr;
             class SimpleIntegrationTestFixture;
         }
     }

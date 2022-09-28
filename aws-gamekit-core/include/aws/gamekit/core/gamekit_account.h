@@ -50,6 +50,9 @@ namespace GameKit
      */
     class GAMEKIT_API GameKitAccount
     {
+        // The S3 Client returns a generic UNKNOWN error type for too many buckets so instead the exception name must be checked
+        const char* TOO_MANY_BUCKETS_EXCEPTION_NAME = "TooManyBuckets";
+
     private:
         AccountInfoCopy m_accountInfo;
         AccountCredentialsCopy m_credentials;

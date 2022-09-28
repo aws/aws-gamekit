@@ -226,7 +226,7 @@ unsigned int GameKit::Identity::Identity::Logout()
     if (refreshToken.empty())
     {
         Logging::Log(m_logCb, Level::Info, "Identity::Logout() No user is currently logged in.");
-        return GAMEKIT_ERROR_LOGIN_FAILED;
+        return GAMEKIT_ERROR_LOGOUT_FAILED;
     }
 
     std::string client_id = m_sessionManager->GetClientSettings()[ClientSettings::Authentication::SETTINGS_USER_POOL_CLIENT_ID];

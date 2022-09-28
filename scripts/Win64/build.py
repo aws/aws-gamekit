@@ -58,11 +58,13 @@ def build(args):
         test_dir = pathlib.Path("tests") / args.type
         os.chdir(test_dir)
 
-		# TODO :: Figure out why this STATUS_ACCESS_VIOLATION segfault happens when cleaning up unit tests
-        allowedExitCodes = [3221225477]
-        tempFastFail = ["--gtest_break_on_failure"]
+        # Run tests two times. First with deterministic order and second in random order.
+        # Useful to detect dependencies between tests.
+        extra_args = ["--abort_on_failure", "--filesystem_check"]
+        run_and_log(["aws-gamekit-cpp-tests.exe"] + extra_args)
 
-        run_and_log(["aws-gamekit-cpp-tests.exe"] + tempFastFail, allowListExitCodes=allowedExitCodes)
+        extra_args = ["--abort_on_failure", "--gtest_shuffle", "--filesystem_check"]
+        run_and_log(["aws-gamekit-cpp-tests.exe"] + extra_args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Builds and tests AWS GameKit cpp sdk.")

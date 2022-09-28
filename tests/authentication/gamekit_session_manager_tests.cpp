@@ -7,10 +7,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#define CLIENT_CONFIG_FILE "../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml"
+
 class GameKit::Tests::GameKitSessionManager::GameKitSessionManagerTestFixture : public ::testing::Test
 {
 protected:
-    TestStackInitializer testStack;
+    TestStackInitializer testStackInitializer;
     typedef TestLog<GameKitSessionManagerTestFixture> TestLogger;
 
 public:
@@ -22,15 +24,16 @@ public:
 
     void SetUp()
     {
-        TestLogger::Clear();
-        testStack.Initialize();
+        testStackInitializer.Initialize();
 
-        gamekitSessionManagerInstance = Aws::MakeUnique<GameKit::Authentication::GameKitSessionManager>("sessionManager", "../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log);
+        gamekitSessionManagerInstance = Aws::MakeUnique<GameKit::Authentication::GameKitSessionManager>("sessionManager", CLIENT_CONFIG_FILE, TestLogger::Log);
     }
 
     void TearDown()
     {
-        testStack.Cleanup();
+        gamekitSessionManagerInstance.reset();
+        testStackInitializer.CleanupAndLog<TestLogger>();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 

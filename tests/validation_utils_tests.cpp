@@ -20,6 +20,7 @@ public:
 
     void TearDown()
     {
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 

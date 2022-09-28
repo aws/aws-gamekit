@@ -43,6 +43,7 @@ namespace GameKit
     static const unsigned int GAMEKIT_ERROR_BOOTSTRAP_INVALID_REGION_CODE = 0x1F7;
     static const unsigned int GAMEKIT_ERROR_BOOTSTRAP_MISSING_PLUGIN_ROOT = 0x1F8;
     static const unsigned int GAMEKIT_ERROR_BOOTSTRAP_REGION_CODE_CONVERSION_FAILED = 0x1F9;
+    static const unsigned int GAMEKIT_ERROR_BOOTSTRAP_TOO_MANY_BUCKETS = 0x1FA;
 
     // Resource creation status codes (1001-1500)
     static const unsigned int GAMEKIT_ERROR_FUNCTIONS_PATH_NOT_FOUND = 0x3E9;

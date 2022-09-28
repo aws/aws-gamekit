@@ -4,6 +4,7 @@
 #pragma once
 
 // GameKit
+#include "custom_test_flags.h"
 #include "test_log.h"
 #include "aws/gamekit/core/utils/ticker.h"
 
@@ -22,7 +23,7 @@ namespace GameKit
                 typedef std::vector<bool> TickCallbacks;
                 typedef TestLog<GameKitUtilsTickerTestFixture> TestLogger;
 
-                GameKit::Utils::Ticker* m_ticker;
+                GameKit::Utils::Ticker* m_ticker = nullptr;
                 TickCallbacks callBacks1;
                 TickCallbacks callBacks2;
 
@@ -61,13 +62,16 @@ namespace GameKit
 
                 void SetUp() override
                 {
-                    TestLogger::Clear();
                 }
 
                 void TearDown() override
                 {
                     callBacks1.clear();
                     callBacks2.clear();
+
+                    TestLogger::DumpToConsoleIfTestFailed();
+                    TestLogger::Clear();
+                    TestExecutionUtils::AbortOnFailureIfEnabled();
                 }
 
                 void MockTickCallback1()

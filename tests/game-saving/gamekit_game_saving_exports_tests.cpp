@@ -81,32 +81,36 @@ using namespace GameKit::Mocks;
 
 using namespace testing;
 
+#define CLIENT_CONFIG_FILE "../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml"
+
 void GameKitGameSavingExportsTestFixture::SetUp()
 {
-    ::testing::internal::CaptureStdout();
-    TestLogger::Clear();
+    testStackInitializer.Initialize();
 
     local = ToAwsString(TEST_LAST_MODIFIED_LOCAL);
     cloud = ToAwsString(TEST_LAST_MODIFIED_CLOUD);
     last = ToAwsString(TEST_LAST_SYNC);
-
-    testStack.Initialize();
 }
 
 void GameKitGameSavingExportsTestFixture::TearDown()
 {
-    std::string capturedStdout = ::testing::internal::GetCapturedStdout();
-
-    testStack.Cleanup();
+    if (sessionManager != nullptr)
+    {
+        GameKitSessionManagerInstanceRelease(sessionManager);
+        sessionManager = nullptr;
+    }
 
     remove(TEST_FAKE_PATH);
     remove(TEST_TEMP_FILEPATH);
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(mockHttpClient.get()));
+
+    testStackInitializer.CleanupAndLog<TestLogger>();
+    TestExecutionUtils::AbortOnFailureIfEnabled();
 }
 
 void* GameKitGameSavingExportsTestFixture::CreateGameSavingInstance(const Slot* localSyncedSlots = nullptr, unsigned int slotCount, const char* const* slotInformationPaths, unsigned int slotInformationArraySize)
 {
-    sessionManager = static_cast<Authentication::GameKitSessionManager*>(GameKitSessionManagerInstanceCreate("../core/test_data/sampleplugin/instance/testgame/dev/awsGameKitClientConfig.yml", TestLogger::Log));
+    sessionManager = static_cast<Authentication::GameKitSessionManager*>(GameKitSessionManagerInstanceCreate(CLIENT_CONFIG_FILE, TestLogger::Log));
     sessionManager->SetToken(TokenType::IdToken, "test_token");
 
     void* instance;

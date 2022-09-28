@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "custom_test_flags.h"
 #include "gamekit_settings_test.h"
 #include "test_log.h"
 
@@ -18,7 +19,6 @@ public:
 
     void SetUp()
     {
-        TestLogger::Clear();
         gamekitSettingsInstance = std::make_unique<GameKit::GameKitSettings>("../core/test_data/sampleplugin/instance", "1.0.0", "testgame", "dev", TestLogger::Log);
     }
 
@@ -29,6 +29,10 @@ public:
         boost::filesystem::remove(gamekitSettingsInstance->GetSettingsFilePath());
 
         gamekitSettingsInstance.reset();
+
+        TestLogger::DumpToConsoleIfTestFailed();
+        TestLogger::Clear();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 

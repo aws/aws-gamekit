@@ -4,6 +4,7 @@
 #include "../core/mocks/fake_http_client.h"
 #include "aws/gamekit/achievements/gamekit_achievements.h"
 #include "aws/gamekit/achievements/exports.h"
+#include "aws/gamekit/authentication/exports.h"
 #include "../core/test_stack.h"
 #include "../core/test_log.h"
 
@@ -34,7 +35,8 @@ namespace GameKit
                 virtual void TearDown() override;
 
             protected:
-                void* createAchievementsInstance(bool setToken);
+                void* createAdminAchievementsInstance(bool setToken);
+                GAMEKIT_SESSIONMANAGER_INSTANCE_HANDLE testSessionManager = nullptr;
                 void setAchievementsMocks(void* instance);
                 std::shared_ptr<MockHttpClient> mockHttpClient;
 

@@ -38,7 +38,8 @@ namespace GameKit
                 static const std::string MOCK_ACCESS_SECRET;
                 static const std::string MOCK_SESSION_TOKEN;
 
-                void* createAchievementsInstance(bool setToken);
+                void* createAdminAchievementsInstance(bool setToken);
+                GAMEKIT_SESSIONMANAGER_INSTANCE_HANDLE testSessionManager = nullptr;
                 void setAchievementsMocks(void* instance);
                 void setAchievementsAdminCredentials(GameKit::Achievements::AdminAchievements* achievementsInstance);
                 std::shared_ptr<MockHttpClient> mockHttpClient;

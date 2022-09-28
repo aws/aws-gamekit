@@ -4,14 +4,19 @@
 #include "feature_resources_test.h"
 #include "test_stack.h"
 #include "test_log.h"
+#include "custom_test_flags.h"
 
 #include <boost/filesystem.hpp>
+
+#define INSTANCE_FILES_DIR "../core/test_data/sampleplugin/instance/testgame/dev/uswe2"
 
 class GameKit::Tests::GameKitFeatureResources::GameKitFeatureResourcesTestFixture : public ::testing::Test
 {
 protected:
     TestStackInitializer testStackInitializer;
     typedef TestLog<GameKitFeatureResourcesTestFixture> TestLogger;
+    Aws::UniquePtr<GameKit::GameKitAccount> gamekitAccountInstance = nullptr;
+    Aws::UniquePtr<GameKit::GameKitFeatureResources> gamekitFeatureResourcesInstance = nullptr;
 
 public:
     GameKitFeatureResourcesTestFixture()
@@ -22,7 +27,6 @@ public:
 
     void SetUp()
     {
-        TestLogger::Clear();
         testStackInitializer.Initialize();
 
         gamekitAccountInstance = Aws::MakeUnique<GameKit::GameKitAccount>(
@@ -38,9 +42,9 @@ public:
             GameKit::FeatureType::Identity,
             TestLogger::Log);
 
-        s3Mock.release();
-        ssmMock.release();
-        cfnMock.release();
+        s3Mock.reset();
+        ssmMock.reset();
+        cfnMock.reset();
 
         s3Mock = std::make_unique<GameKit::Mocks::MockS3Client>();
         ssmMock = std::make_unique<GameKit::Mocks::MockSSMClient>();
@@ -58,11 +62,15 @@ public:
         ASSERT_TRUE(Mock::VerifyAndClearExpectations(s3Mock.get()));
         ASSERT_TRUE(Mock::VerifyAndClearExpectations(ssmMock.get()));
         ASSERT_TRUE(Mock::VerifyAndClearExpectations(cfnMock.get()));
-
+        
         gamekitAccountInstance.reset();
         gamekitFeatureResourcesInstance.reset();
+        s3Mock.release();
+        ssmMock.release();
+        cfnMock.release();
 
-        testStackInitializer.Cleanup();
+        testStackInitializer.CleanupAndLog<TestLogger>();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 
@@ -80,11 +88,15 @@ TEST_F(GameKitFeatureResourcesTestFixture, TestSaveLocalCloudFormation_Saved)
     gamekitFeatureResourcesInstance->SetInstanceFunctionsPath(gamekitAccountInstance->GetInstanceFunctionsPath());
 
     // act
-    unsigned result = gamekitFeatureResourcesInstance->SaveFunctionInstances();
-    result = gamekitFeatureResourcesInstance->SaveCloudFormationInstance();
+    unsigned int saveFuncResult = gamekitFeatureResourcesInstance->SaveFunctionInstances();
+    unsigned int saveCFResult = gamekitFeatureResourcesInstance->SaveCloudFormationInstance();
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveFuncResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveCFResult);
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }
 
 TEST_F(GameKitFeatureResourcesTestFixture, TestWriteEmptyConfigFile_Saved)
@@ -102,6 +114,7 @@ TEST_F(GameKitFeatureResourcesTestFixture, TestWriteEmptyConfigFile_Saved)
     // assert
     ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
     ASSERT_TRUE(boost::filesystem::exists("../core/test_data/sampleplugin/alternativeInstanceEmptyConfig/testgame/dev/awsGameKitClientConfig.yml"));
+    remove("../core/test_data/sampleplugin/alternativeInstanceEmptyConfig/testgame/dev/awsGameKitClientConfig.yml");
 }
 
 TEST_F(GameKitFeatureResourcesTestFixture, WhenSetAwsClient_ThenClientPreservedInDestructor)
@@ -211,10 +224,17 @@ TEST_F(GameKitFeatureResourcesTestFixture, DeployFeatureFunctions_Success)
         .WillRepeatedly(Return(putObjOutcome));
 
     // act
-    auto result = gamekitFeatureResourcesInstance->DeployFeatureFunctions();
+    unsigned int saveFuncResult = gamekitFeatureResourcesInstance->SaveFunctionInstances();
+    unsigned int deployResult = gamekitFeatureResourcesInstance->DeployFeatureFunctions();
 
     // assert
-    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, result);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, saveFuncResult);
+    ASSERT_EQ(GameKit::GAMEKIT_SUCCESS, deployResult);
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(ssmMock.get()));
     ASSERT_TRUE(Mock::VerifyAndClearExpectations(s3Mock.get()));
+    Mock::VerifyAndClearExpectations(testStackInitializer.GetMockHttpClientFactory()->GetClient().get());
+    testStackInitializer.GetMockHttpClientFactory()->GetClient().reset();
+
+    // clean artifacts
+    TestFileSystemUtils::DeleteDirectory(INSTANCE_FILES_DIR);
 }

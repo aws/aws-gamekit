@@ -3,6 +3,7 @@
 
 #include "aws_region_mappings_test.h"
 #include "test_log.h"
+#include "custom_test_flags.h"
 
 class GameKit::Tests::GameKitAwsRegionMappingsTestFixture : public ::testing::Test
 {
@@ -20,11 +21,13 @@ public:
 
     void SetUp() override
     {
-        TestLogger::Clear();
     }
 
     void TearDown() override
     {
+        TestLogger::DumpToConsoleIfTestFailed();
+        TestLogger::Clear();
+        TestExecutionUtils::AbortOnFailureIfEnabled();
     }
 };
 

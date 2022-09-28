@@ -154,7 +154,7 @@ public:
 
     FakeHttpClient() = default;
 
-    std::shared_ptr<Aws::Http::HttpResponse> MakeRequest(const std::shared_ptr<Aws::Http::HttpRequest>& request,
+    virtual std::shared_ptr<Aws::Http::HttpResponse> MakeRequest(const std::shared_ptr<Aws::Http::HttpRequest>& request,
         Aws::Utils::RateLimits::RateLimiterInterface* readLimiter = nullptr,
         Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr)
         const override
@@ -197,7 +197,7 @@ public:
 class MockHttpClientFactory : public Aws::Http::HttpClientFactory
 {
 private:
-    std::shared_ptr<MockHttpClient> mockClient;
+    std::shared_ptr<Aws::Http::HttpClient> mockClient;
 
 public:
     virtual std::shared_ptr<Aws::Http::HttpClient> CreateHttpClient(const Aws::Client::ClientConfiguration& clientConfiguration) const override
@@ -221,12 +221,12 @@ public:
         return request;
     }
 
-    inline std::shared_ptr<MockHttpClient> GetClient() const
+    inline std::shared_ptr<Aws::Http::HttpClient> GetClient() const
     { 
         return mockClient; 
     }
 
-    inline void SetClient(const std::shared_ptr<MockHttpClient>& client) 
+    inline void SetClient(const std::shared_ptr<Aws::Http::HttpClient>& client)
     { 
         mockClient = client; 
     }
