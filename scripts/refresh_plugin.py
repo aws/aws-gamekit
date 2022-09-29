@@ -71,6 +71,8 @@ if __name__ == "__main__":
 
     unreal_parser = engine_subparser.add_parser("Unreal")
     unreal_parser.add_argument("--unreal_plugin_path", required=True, help="Path to AWS GameKit Plugin for Unreal e.g. [unreal_project_path]/Plugins/AwsGameKit")
+    if parser.parse_known_args()[0].platform == "Android" and parser.parse_known_args()[0].engine == "Unreal":
+        android_unreal.add_parser_arguments(unreal_parser)
 
     unity_parser = engine_subparser.add_parser("Unity")
     unity_parser.add_argument("--unity_plugin_path", required=True, help="Path to AWS GameKit Plugin for Unity Unity e.g. [unity_repo]/Packages/com.amazonaws.gamekit")
@@ -95,7 +97,7 @@ if __name__ == "__main__":
         if "Windows" == args.platform:
             windows_unreal.refresh(args.type, args.unreal_plugin_path)
         if "Android" == args.platform:
-            android_unreal.refresh(args.type, args.unreal_plugin_path)
+            android_unreal.refresh(args.type, args.unreal_plugin_path, args.android_architecture)
         if "Mac" == args.platform:
             mac_unreal.refresh(args.type, args.unreal_plugin_path, args.certificate_name)
         if "iOS" == args.platform:
