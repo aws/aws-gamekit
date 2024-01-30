@@ -2767,7 +2767,7 @@ mz_uint tdefl_create_comp_flags_from_zip_params(int level, int window_bits, int 
 #endif
 
 // Simple PNG writer function by Alex Evans, 2011. Released into the public domain: https://gist.github.com/908299, more context at
-// http://altdevblogaday.org/2011/04/06/a-smaller-jpg-encoder/.
+// https://web.archive.org/web/20110410100213/http://altdevblogaday.org/2011/04/06/a-smaller-jpg-encoder/
 void *tdefl_write_image_to_png_file_in_memory(const void *pImage, int w, int h, int num_chans, size_t *pLen_out)
 {
   tdefl_compressor *pComp = (tdefl_compressor *)MZ_MALLOC(sizeof(tdefl_compressor)); tdefl_output_buffer out_buf; int i, bpl = w * num_chans, y, z; mz_uint32 c; *pLen_out = 0;
